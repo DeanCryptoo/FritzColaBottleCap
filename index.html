@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>fritz-kola | CAP FLICK</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap');
+
+        :root { --bg: #050505; --white: #f1f1f1; --red: #c91a1a; }
+        
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh; width: 100vw;
+            display: flex; justify-content: center; align-items: center;
+            touch-action: none;
+        }
+
+        #game-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .hud-top { padding-top: 40px; text-align: center; width: 100%; }
+        .logo { font-family: 'Anton', sans-serif; font-size: 3rem; text-transform: uppercase; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.8); }
+        .red { color: var(--red); }
+        .score { font-family: 'Anton', sans-serif; font-size: 1.5rem; color: #888; margin-top: 5px; }
+        #score-val { color: #fff; font-size: 2rem; }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5,5,5,0.95);
+            display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px;
+            pointer-events: auto; z-index: 20;
+        }
+        .screen.active { display: flex; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        h1 { font-family: 'Anton', sans-serif; font-size: 3rem; margin: 0 0 10px 0; line-height: 1; text-transform: uppercase; color: #fff; }
+        p { color: #aaa; margin-bottom: 30px; max-width: 300px; line-height: 1.5; }
+
+        .btn {
+            background: #fff; color: #000; font-family: 'Anton', sans-serif; font-size: 1.5rem;
+            padding: 20px 40px; border: none; cursor: pointer; text-transform: uppercase;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); background: #ccc; }
+
+        #tutorial {
+            position: absolute; bottom: 35%; left: 0; width: 100%; text-align: center;
+            pointer-events: none; opacity: 0; transition: opacity 0.5s;
+        }
+        #tutorial.show { opacity: 1; }
+        .hand-icon { font-size: 4rem; animation: flick 1.5s infinite; display: block; filter: drop-shadow(0 5px 10px #000); }
+        @keyframes flick { 0% { transform: translateY(20px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-layer">
+        <canvas id="c"></canvas>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="logo">fritz<span class="red">-</span>kola</div>
+            <div class="score">STREAK: <span id="score-val">0</span></div>
+        </div>
+        <div id="tutorial">
+            <span class="hand-icon">👆</span>
+            <div style="font-family:'Anton'; font-size:1.5rem; color:#fff; text-shadow:0 2px 4px #000;">DRAG UP TO SHOOT</div>
+        </div>
+    </div>
+
+    <div id="screen-start" class="screen active">
+        <h1>CAP FLICK</h1>
+        <p>Drag up to aim.<br>Release to fire.<br>Sink 10 in a row.</p>
+        <button class="btn" onclick="Game.start()">START GAME</button>
+    </div>
+
+    <div id="screen-fail" class="screen">
+        <h1 style="color:#666">MISS!</h1>
+        <p>The streak is broken.</p>
+        <button class="btn" onclick="Game.retry()">TRY AGAIN</button>
+    </div>
+
+    <div id="screen-win" class="screen">
+        <h1 class="red">LEGENDARY!</h1>
+        <p>You hit a streak of 10!</p>
+        <button class="btn" onclick="location.reload()">CLAIM PRIZE</button>
+    </div>
+
+<script>
+// === CORE CONFIGURATION ===
+const CFG = {
+    gravity: 0.55,
+    powerMultiplier: 0.18, 
+    maxPower: 40,          
+    spawnYOffset: 190,     // Cap sits higher up on the new bottle neck
+    bucketY: 300           
+};
+
+// === GAME STATE ===
+const State = {
+    w: 0, h: 0,
+    phase: 'IDLE', 
+    streak: 0,
+    frames: 0,
+    bgEnergy: 0,
+    particles: [],
+    bgSwirls: [],
+    wonCaps: []
+};
+
+const Canvas = document.getElementById('c');
+const Ctx = Canvas.getContext('2d');
+
+// === INPUT CONTROLLER ===
+const Input = {
+    x: 0, y: 0,
+    startX: 0, startY: 0,
+    isDown: false,
+
+    init() {
+        window.addEventListener('touchstart', e => {
+            if(e.target.tagName === 'BUTTON') return;
+            this.start(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+        window.addEventListener('touchmove', e => {
+            this.move(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+        window.addEventListener('touchend', () => this.end());
+
+        window.addEventListener('mousedown', e => this.start(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => this.move(e.clientX, e.clientY));
+        window.addEventListener('mouseup', () => this.end());
+    },
+
+    start(x, y) {
+        if(State.phase !== 'IDLE') return;
+        if(y < State.h - 400) return; 
+
+        this.isDown = true;
+        this.startX = x; this.startY = y;
+        this.x = x; this.y = y;
+        State.phase = 'AIMING';
+        document.getElementById('tutorial').classList.remove('show');
+    },
+
+    move(x, y) {
+        if(!this.isDown) return;
+        this.x = x; this.y = y;
+    },
+
+    end() {
+        if(!this.isDown) return;
+        this.isDown = false;
+
+        const dx = this.x - this.startX;
+        const dy = this.y - this.startY;
+
+        if (dy < -30) {
+            let vx = dx * CFG.powerMultiplier;
+            let vy = dy * CFG.powerMultiplier;
+            if(vy < -CFG.maxPower) vy = -CFG.maxPower;
+            Game.shoot(vx, vy);
+        } else {
+            State.phase = 'IDLE';
+        }
+    }
+};
+
+// === CAP ENTITY ===
+const Cap = {
+    x: 0, y: 0, z: 1,
+    vx: 0, vy: 0,
+    rot: 0, vRot: 0,
+    
+    reset() {
+        this.x = State.w / 2;
+        this.y = State.h - CFG.spawnYOffset;
+        this.z = 1;
+        this.vx = 0; this.vy = 0;
+        this.rot = 0; this.vRot = 0;
+        State.phase = 'IDLE';
+    },
+
+    update() {
+        if(State.phase !== 'FLYING') return;
+
+        this.vy += CFG.gravity;
+        this.x += this.vx;
+        this.y += this.vy;
+        this.rot += this.vRot;
+
+        let distTotal = (State.h - CFG.spawnYOffset) - CFG.bucketY;
+        let distCurr = (State.h - CFG.spawnYOffset) - this.y;
+        let progress = Math.max(0, Math.min(1, distCurr / distTotal));
+        this.z = 1.0 - (progress * 0.5);
+
+        if(this.vy > 0 && Math.abs(this.y - CFG.bucketY) < 30) {
+            let bucketW = 80 * this.z; 
+            let distToCenter = Math.abs(this.x - (State.w/2));
+
+            if(distToCenter < bucketW) {
+                Game.score();
+            } else if (distToCenter < bucketW + 25) {
+                this.vx *= -0.6;
+                this.vy *= -0.5;
+                this.vRot += 0.5;
+                Effects.spark(this.x, this.y);
+            }
+        }
+
+        if(this.y > State.h + 200 || this.x < -100 || this.x > State.w + 100) {
+            Game.miss();
+        }
+    }
+};
+
+// === RENDERER ===
+const Render = {
+    draw() {
+        this.drawBackground();
+
+        Ctx.save();
+        Ctx.translate(Bucket.x, Bucket.y);
+        Ctx.scale(0.5, 0.5); 
+        this.drawBucketBack();
+        this.drawCapsInBucket();
+        Ctx.restore();
+
+        // Draw the new, better bottle
+        this.drawLauncher();
+
+        if(State.phase === 'AIMING' && Input.isDown) {
+            this.drawTrajectory();
+        }
+
+        if(State.phase !== 'SCORING') {
+            this.drawCap();
+        }
+
+        Ctx.save();
+        Ctx.translate(Bucket.x, Bucket.y);
+        Ctx.scale(0.5, 0.5);
+        this.drawBucketFront();
+        Ctx.restore();
+
+        this.drawEffects();
+        
+        if(State.screenFlash > 0) {
+            Ctx.fillStyle = `rgba(255,255,255,${State.screenFlash})`;
+            Ctx.fillRect(0,0,State.w, State.h);
+            State.screenFlash -= 0.1;
+        }
+    },
+
+    drawTrajectory() {
+        let dx = Input.x - Input.startX;
+        let dy = Input.y - Input.startY;
+        if(dy >= 0) return;
+
+        let simX = Cap.x;
+        let simY = Cap.y;
+        let simVx = dx * CFG.powerMultiplier;
+        let simVy = dy * CFG.powerMultiplier;
+        if(simVy < -CFG.maxPower) simVy = -CFG.maxPower;
+
+        Ctx.beginPath();
+        Ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        Ctx.lineWidth = 4;
+        Ctx.setLineDash([10, 10]);
+        Ctx.moveTo(simX, simY);
+
+        for(let i=0; i<15; i++) {
+            simX += simVx;
+            simY += simVy;
+            simVy += CFG.gravity;
+            Ctx.lineTo(simX, simY);
+        }
+        Ctx.stroke();
+        Ctx.setLineDash([]);
+    },
+
+    drawBackground() {
+        let cx = State.w / 2;
+        let cy = State.h / 2;
+        let energy = State.bgEnergy / 100;
+        
+        let r = 10 + (energy * 60);
+        let grad = Ctx.createRadialGradient(cx, cy, 10, cx, cy, State.h);
+        grad.addColorStop(0, `rgb(${r}, 10, 20)`);
+        grad.addColorStop(1, '#020202');
+        Ctx.fillStyle = grad;
+        Ctx.fillRect(0,0,State.w, State.h);
+
+        Ctx.save();
+        Ctx.translate(cx, cy);
+        State.bgSwirls.forEach(p => {
+            p.angle += p.speed;
+            let dist = p.dist + Math.sin(State.frames*0.02 + p.dist)*20;
+            let px = Math.cos(p.angle) * dist;
+            let py = Math.sin(p.angle) * dist;
+            Ctx.globalAlpha = 0.2 + (energy * 0.3);
+            Ctx.fillStyle = '#fff';
+            Ctx.beginPath(); Ctx.arc(px, py, p.size, 0, Math.PI*2); Ctx.fill();
+        });
+        Ctx.restore();
+    },
+
+    // === NEW, REALISTIC BOTTLE DRAWING ===
+    drawLauncher() {
+        let cx = State.w / 2;
+        let cy = State.h;
+
+        Ctx.save();
+        Ctx.translate(cx, cy);
+
+        // 1. The Glass Body (Dark with gradients)
+        let grad = Ctx.createLinearGradient(-38, 0, 38, 0);
+        grad.addColorStop(0, '#050505');
+        grad.addColorStop(0.2, '#222'); // Highlight left
+        grad.addColorStop(0.5, '#0a0a0a'); // Dark center
+        grad.addColorStop(0.8, '#222'); // Highlight right
+        grad.addColorStop(1, '#050505');
+        Ctx.fillStyle = grad;
+
+        Ctx.beginPath();
+        // Start bottom left
+        Ctx.moveTo(-38, 0);
+        // Shoulder curve up to neck base
+        Ctx.quadraticCurveTo(-38, -100, -25, -150);
+        // Straight up neck to lip
+        Ctx.lineTo(-25, -190);
+        // Lip flare out
+        Ctx.lineTo(-28, -195);
+        Ctx.lineTo(-28, -205);
+        // Top of lip
+        Ctx.lineTo(28, -205);
+        // Lip flare in
+        Ctx.lineTo(28, -195);
+        Ctx.lineTo(25, -190);
+        // Straight down neck
+        Ctx.lineTo(25, -150);
+        // Shoulder curve down to bottom right
+        Ctx.quadraticCurveTo(38, -100, 38, 0);
+        Ctx.closePath();
+        Ctx.fill();
+
+        // 2. Glass Highlights (Crucial for realism)
+        Ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        // Left long highlight following the curve
+        Ctx.beginPath();
+        Ctx.moveTo(-20, 0);
+        Ctx.quadraticCurveTo(-20, -100, -12, -150);
+        Ctx.lineTo(-12, -190);
+        Ctx.lineTo(-16, -190);
+        Ctx.lineTo(-16, -150);
+        Ctx.quadraticCurveTo(-28, -100, -28, 0);
+        Ctx.fill();
+
+        // Right sharp highlight on neck
+        Ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        Ctx.fillRect(12, -190, 3, 190);
+
+
+        // 3. The Label (Sits on the curved shoulder)
+        Ctx.fillStyle = '#c91a1a';
+        Ctx.fillRect(-30, -120, 60, 50);
+        Ctx.fillStyle = '#fff';
+        Ctx.font = "bold 13px sans-serif";
+        Ctx.textAlign = "center";
+        Ctx.fillText("fritz-kola", 0, -90);
+
+        Ctx.restore();
+    },
+
+    drawCap() {
+        Ctx.save();
+        Ctx.translate(Cap.x, Cap.y);
+        Ctx.scale(Cap.z, Cap.z);
+        Ctx.rotate(Cap.rot);
+
+        // Metal Rim
+        Ctx.fillStyle = '#ccc';
+        Ctx.beginPath(); Ctx.arc(0,0, 26, 0, Math.PI*2); Ctx.fill();
+
+        // Red Top
+        let grad = Ctx.createRadialGradient(0,0,0,0,0,22);
+        grad.addColorStop(0, '#ff5555');
+        grad.addColorStop(1, '#c91a1a');
+        Ctx.fillStyle = grad;
+        Ctx.beginPath(); Ctx.arc(0,0, 22, 0, Math.PI*2); Ctx.fill();
+
+        // Text
+        Ctx.fillStyle = '#fff';
+        Ctx.font = "bold 11px sans-serif";
+        Ctx.textAlign = "center";
+        Ctx.textBaseline = "middle";
+        Ctx.fillText("kola", 0, 1);
+
+        Ctx.restore();
+    },
+
+    drawBucketBack() {
+        Ctx.fillStyle = '#111';
+        Ctx.beginPath(); Ctx.ellipse(0, 90, 100, 20, 0, 0, Math.PI*2); Ctx.fill();
+
+        let grad = Ctx.createLinearGradient(-110, 0, 110, 0);
+        grad.addColorStop(0, '#0a0a0a'); grad.addColorStop(0.5, '#222'); grad.addColorStop(1, '#0a0a0a');
+        Ctx.fillStyle = grad;
+        Ctx.beginPath(); Ctx.moveTo(-110, -90); Ctx.lineTo(110, -90); Ctx.lineTo(100, 90); Ctx.lineTo(-100, 90); Ctx.fill();
+    },
+
+    drawBucketFront() {
+        let grad = Ctx.createLinearGradient(-110, 0, 110, 0);
+        grad.addColorStop(0, 'rgba(10,10,10,0.9)');
+        grad.addColorStop(0.2, 'rgba(50,50,50,0.8)');
+        grad.addColorStop(0.5, 'rgba(20,20,20,0.8)');
+        grad.addColorStop(0.8, 'rgba(50,50,50,0.8)');
+        grad.addColorStop(1, 'rgba(10,10,10,0.9)');
+        Ctx.fillStyle = grad;
+        Ctx.beginPath(); Ctx.moveTo(-110, -90); Ctx.lineTo(110, -90); Ctx.lineTo(100, 90); Ctx.lineTo(-100, 90); Ctx.fill();
+
+        // Rim
+        Ctx.strokeStyle = '#888'; Ctx.lineWidth = 6;
+        Ctx.beginPath(); Ctx.ellipse(0, -90, 110, 10, 0, 0, Math.PI*2); Ctx.stroke();
+
+        Ctx.fillStyle = '#fff'; Ctx.font = "bold 24px sans-serif"; Ctx.textAlign = "center"; Ctx.fillText("ICE COLD", 0, 0);
+    },
+
+    drawCapsInBucket() {
+        State.wonCaps.forEach(c => {
+            Ctx.save();
+            Ctx.translate(c.x, c.y);
+            Ctx.rotate(c.r);
+            Ctx.fillStyle = '#c91a1a';
+            Ctx.beginPath(); Ctx.arc(0,0, 15, 0, Math.PI*2); Ctx.fill();
+            Ctx.fillStyle = '#fff'; Ctx.font="10px sans-serif"; Ctx.fillText("k", 0, 3);
+            Ctx.restore();
+        });
+    },
+
+    drawEffects() {
+        State.particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            if(p.life <= 0) { State.particles.splice(i, 1); return; }
+            Ctx.globalAlpha = p.life;
+            Ctx.fillStyle = p.color;
+            if(p.type === 'confetti') {
+                Ctx.save(); Ctx.translate(p.x, p.y); Ctx.rotate(p.life*10); Ctx.fillRect(-3, -3, 6, 6); Ctx.restore();
+            } else {
+                Ctx.fillRect(p.x, p.y, 3, 3);
+            }
+        });
+        Ctx.globalAlpha = 1;
+    }
+};
+
+const Effects = {
+    spark(x, y) {
+        for(let i=0; i<10; i++) {
+            State.particles.push({ x:x, y:y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, life:1, color:'#FFD700', type:'spark' });
+        }
+    },
+    confetti(x, y) {
+        for(let i=0; i<20; i++) {
+            State.particles.push({ x:x, y:y, vx:(Math.random()-0.5)*15, vy:-5-Math.random()*10, life:1, color: Math.random()>0.5?'#c91a1a':'#fff', type:'confetti' });
+        }
+    }
+};
+
+const Bucket = {
+    x: 0, y: 0,
+    init() {},
+    update() {
+        this.x = State.w / 2 + Math.sin(State.frames * 0.02) * (10 + State.streak * 5);
+        this.y = CFG.bucketY;
+    }
+};
+
+// === GAME CONTROLLER ===
+const Game = {
+    init() {
+        window.addEventListener('resize', this.resize);
+        this.resize();
+        Input.init();
+        
+        for(let i=0; i<40; i++) {
+            State.bgSwirls.push({ angle: Math.random()*Math.PI*2, dist: 100 + Math.random()*400, speed: (0.001 + Math.random()*0.002) * (Math.random()>0.5?1:-1), size: Math.random()*3+1 });
+        }
+        this.loop();
+    },
+
+    resize() {
+        State.w = window.innerWidth;
+        State.h = window.innerHeight;
+        Canvas.width = State.w;
+        Canvas.height = State.h;
+        Cap.reset();
+    },
+
+    start() {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        State.streak = 0;
+        State.wonCaps = [];
+        document.getElementById('score-val').innerText = "0";
+        document.getElementById('tutorial').classList.add('show');
+        Cap.reset();
+    },
+
+    shoot(vx, vy) {
+        State.phase = 'FLYING';
+        Cap.vx = vx;
+        Cap.vy = vy;
+        Cap.vRot = (Math.random() - 0.5) * 0.5; // Spin
+    },
+
+    score() {
+        State.phase = 'SCORING';
+        State.streak++;
+        State.bgEnergy = 100;
+        State.screenFlash = 0.3;
+        document.getElementById('score-val').innerText = State.streak;
+        
+        if(navigator.vibrate) navigator.vibrate(50);
+        Effects.confetti(Cap.x, Cap.y);
+
+        setTimeout(() => {
+            State.wonCaps.push({
+                x: (Math.random()-0.5)*100,
+                y: 50 - (State.wonCaps.length * 5),
+                r: Math.random() * Math.PI
+            });
+            
+            if(State.streak >= 10) {
+                document.getElementById('screen-win').classList.add('active');
+            } else {
+                Cap.reset();
+            }
+        }, 500);
+    },
+
+    miss() {
+        State.phase = 'MISS';
+        setTimeout(() => {
+            if(State.mode === 'warmup') Cap.reset();
+            else document.getElementById('screen-fail').classList.add('active');
+        }, 500);
+    },
+
+    retry() {
+        this.start();
+    },
+
+    loop() {
+        requestAnimationFrame(() => Game.loop());
+        State.frames++;
+        State.bgEnergy *= 0.95;
+        Bucket.update();
+        Cap.update();
+        Render.draw();
+    }
+};
+
+Game.init();
+</script>
+</body>
+</html>
