@@ -209,22 +209,22 @@
         };
 
         // ==========================================
-        // === TWEAKING SECTION (ÄNDERE HIER!) ===
+        // === GAME CONFIGURATION ===
         // ==========================================
-        // Die Zahlen hier beeinflussen Größe und Position.
-        // size: Breite und Höhe der Flasche (Quadratisch, damit keine Verzerrung!)
-        // offsetBottom: Wie viele Pixel von unten ist die Flasche weg.
-        // capSize: Wie groß ist der Deckel.
+        // bottleWidth: Nur die Breite angeben! Höhe wird automatisch berechnet (Ratio 4796x8000)
         const GAME_CONFIG = {
             pc: {
-                bottleSize: 140,      
-                bottleBottom: 150,    // PC: Flasche höher (mehr Abstand von unten)
+                bottleWidth: 120,     // Breite in Pixel (120 ist ein guter Startwert)
+                bottleBottom: 180,    // Abstand vom unteren Rand
                 capSize: 32           
             },
             mobile: {
-                bottleSize: 140,      
-                bottleBottom: 0,     // Mobile: Flasche tiefer (wenig Abstand von unten)
-                capSize: 32           
+                bottleWidth: 110,     // Etwas schmaler am Handy
+                bottleBottom: 100,     
+                capSize: 30           
+            },
+            visuals: {
+                bgOverlayOpacity: 0.7 // Deckkraft des schwarzen Overlays (0.0 bis 1.0)
             }
         };
         // ==========================================
@@ -240,9 +240,9 @@
         
         let CAP_START_Y = VH - 200; 
 
-        // Initial Sizes (Will be overwritten by GAME_CONFIG in resize)
+        // Dimensions placeholder - will be calculated in resize()
         let IMG_SIZES = {
-            bottle: { w: 130, h: 130 }, 
+            bottle: { w: 100, h: 100 }, 
             cap: { w: 30, h: 30 },      
             bucket: { w: 240, h: 240 }  
         };
@@ -306,13 +306,17 @@
 
         const particles = [];
 
-        function spawnParticles(x, y, type) {
+        function spawnParticles(x, y, type, customColor) {
             let count = type === 'confetti' ? 40 : 20;
             for(let i=0; i<count; i++) {
                 let color = '#fff';
                 if(type === 'confetti') {
-                    const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700'];
-                    color = cols[Math.floor(Math.random()*cols.length)];
+                    if(customColor) {
+                        color = customColor; 
+                    } else {
+                        const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700'];
+                        color = cols[Math.floor(Math.random()*cols.length)];
+                    }
                 } else if (type === 'spark') {
                     color = '#FFD700';
                 }
@@ -585,8 +589,8 @@
                 }
             }
 
-            // Add Black Overlay for blur/darkening effect
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // 60% opacity black
+            // Add Black Overlay for blur/darkening effect (CONFIGURABLE)
+            ctx.fillStyle = `rgba(0, 0, 0, ${GAME_CONFIG.visuals.bgOverlayOpacity})`; 
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
 
@@ -641,11 +645,13 @@
             triggerHaptic('success');
             
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
-            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti'); 
             
+            // COLOR CHANGE LOGIC FOR STREAK
             let waveColor = '#fff';
-            if(state.streak > 6) waveColor = '#c91a1a'; 
-            else if(state.streak > 3) waveColor = '#a5f2f3'; 
+            if(state.streak >= 4) waveColor = '#a5f2f3'; // Blue/Cyan
+            if(state.streak >= 8) waveColor = '#c91a1a'; // Red
+            
+            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); 
             spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
 
             if(state.mode === 'streak') {
@@ -712,7 +718,7 @@
             });
         }
 
-        // === BOTTLE IMAGE (STATIONARY) - UPDATED POSITION ===
+        // === BOTTLE IMAGE (STATIONARY) ===
         function drawStationaryBottle() {
             if(images.bottle) {
                 let w = IMG_SIZES.bottle.w;
@@ -869,19 +875,21 @@
             cvs.width = w;
             cvs.height = h;
             
+            // AUTOMATIC ASPECT RATIO CALCULATION (4796x8000)
+            const heightRatio = 8000 / 4796; // ~1.668
+
             // USE GAME CONFIG
-            // If screen is wider than 768px, we assume it's a PC/Tablet
             if(screenW < 768) {
                 // Mobile
-                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleSize;
-                IMG_SIZES.bottle.h = GAME_CONFIG.mobile.bottleSize;
+                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth;
+                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; // AUTO HEIGHT
                 IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
                 IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize;
                 CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom;
             } else {
                 // PC
-                IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleSize;
-                IMG_SIZES.bottle.h = GAME_CONFIG.pc.bottleSize;
+                IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth;
+                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; // AUTO HEIGHT
                 IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize;
                 IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize;
                 CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom;
