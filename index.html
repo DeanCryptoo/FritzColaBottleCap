@@ -8,7 +8,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap');
 
         :root {
-            --bg: #050505;
+            --bg: #000000;
             --white: #f1f1f1;
             --red: #c91a1a;
             --font-head: 'Anton', sans-serif;
@@ -28,15 +28,29 @@
             touch-action: none; 
         }
 
+        /* Container für Desktop-Modus (Handy-Format) */
         #game-container {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            position: relative; 
+            width: 100%; 
+            height: 100%;
+            max-width: 480px; 
             overflow: hidden;
             background: #000;
+            box-shadow: 0 0 50px rgba(20, 20, 20, 0.5); 
         }
 
         canvas { display: block; width: 100%; height: 100%; }
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+
+        /* LOADING SCREEN */
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #fff; z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            font-family: var(--font-head); font-size: 2rem;
+            transition: opacity 0.5s;
+        }
 
         /* HEADER */
         header {
@@ -52,7 +66,7 @@
         .red { color: var(--red); }
         
         #score-box {
-            font-family: var(--font-head); font-size: 1.5rem; color: #888;
+            font-family: var(--font-head); font-size: 1.5rem; color: #ccc;
             margin-top: 5px; letter-spacing: 1px; text-shadow: 0 2px 4px #000;
         }
         #score-val { color: var(--white); font-size: 2.2rem; }
@@ -62,7 +76,7 @@
         /* SCREENS */
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5,5,5,0.98); 
+            background: rgba(0,0,0,0.95); 
             display: none; 
             flex-direction: column; justify-content: center; align-items: center;
             text-align: center; padding: 20px;
@@ -71,11 +85,9 @@
         .screen.active { display: flex; animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        #s-intro { background: rgba(0,0,0,0.85); }
-
         h1 { font-family: var(--font-head); font-size: 3.5rem; margin: 0; line-height: 0.9; text-transform: uppercase; letter-spacing: 1px; }
         h2 { font-family: var(--font-head); font-size: 2rem; margin: 0 0 10px 0; color: var(--white); }
-        p { color: #aaa; margin: 15px 0 30px 0; max-width: 320px; line-height: 1.4; font-size: 1rem; }
+        p { color: #eee; margin: 15px 0 30px 0; max-width: 320px; line-height: 1.4; font-size: 1rem; text-shadow: 0 1px 2px #000; }
 
         .btn {
             background: var(--white); color: var(--bg); font-family: var(--font-head); font-size: 1.3rem;
@@ -83,7 +95,7 @@
             margin: 8px 0;
             clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
             position: relative; pointer-events: auto; user-select: none; transition: transform 0.1s;
-            box-shadow: 0 5px 20px rgba(255, 255, 255, 0.15);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
         }
         .btn:active { transform: scale(0.96); background: #ccc; }
         .btn-outline { background: transparent; color: var(--white); border: 2px solid rgba(255,255,255,0.3); box-shadow: none; }
@@ -96,7 +108,7 @@
         }
 
         #tutorial-overlay {
-            position: absolute; bottom: 35%; left: 0; width: 100%;
+            position: absolute; bottom: 45%; left: 0; width: 100%;
             text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 15;
         }
         #tutorial-overlay.show { opacity: 1; }
@@ -113,6 +125,8 @@
     </style>
 </head>
 <body>
+
+    <div id="loading-screen">LADE BILDER...</div>
 
     <div id="game-container">
         <header id="main-header" class="hidden-ui">
@@ -185,7 +199,37 @@
         let scale = 1; 
         let globalTime = 0; 
 
-        // --- PHYSICS CONFIG (TUNED) ---
+        // --- ASSET LOADER ---
+        const images = {};
+        const imageSources = {
+            bottle: 'Bottle.png',     
+            cap: 'BottleCap.png',     
+            bucket: 'icebucket.png',  
+            bg: 'background.png'
+        };
+
+        // ==========================================
+        // === TWEAKING SECTION (ÄNDERE HIER!) ===
+        // ==========================================
+        // Die Zahlen hier beeinflussen Größe und Position.
+        // size: Breite und Höhe der Flasche (Quadratisch, damit keine Verzerrung!)
+        // offsetBottom: Wie viele Pixel von unten ist die Flasche weg.
+        // capSize: Wie groß ist der Deckel.
+        const GAME_CONFIG = {
+            pc: {
+                bottleSize: 140,      
+                bottleBottom: 150,    // PC: Flasche höher (mehr Abstand von unten)
+                capSize: 32           
+            },
+            mobile: {
+                bottleSize: 140,      
+                bottleBottom: 0,     // Mobile: Flasche tiefer (wenig Abstand von unten)
+                capSize: 32           
+            }
+        };
+        // ==========================================
+
+        // --- PHYSICS CONFIG ---
         const GRAVITY = 0.85;  
         const POWER_X = 0.14;  
         const POWER_Y = 0.16;  
@@ -193,8 +237,15 @@
         // --- VISUAL CONFIG ---
         const SCALE_NEAR = 3.5; 
         const SCALE_FAR = 1.1; 
-        const BOTTLE_BASE_Y = VH + 60; 
-        const BOTTLE_NECK_REL_Y = -60; 
+        
+        let CAP_START_Y = VH - 200; 
+
+        // Initial Sizes (Will be overwritten by GAME_CONFIG in resize)
+        let IMG_SIZES = {
+            bottle: { w: 130, h: 130 }, 
+            cap: { w: 30, h: 30 },      
+            bucket: { w: 240, h: 240 }  
+        };
 
         const state = {
             token: null,
@@ -218,7 +269,7 @@
             vx: 0, vy: 0, rot: 0, vRot: 0,
             reset: function() {
                 this.x = VW / 2; 
-                this.y = BOTTLE_BASE_Y + (BOTTLE_NECK_REL_Y * SCALE_NEAR);
+                this.y = CAP_START_Y;
                 this.z = SCALE_NEAR; 
                 this.vx = 0; this.vy = 0; this.rot = 0; this.vRot = 0;
                 state.phase = 'idle';
@@ -227,34 +278,14 @@
             }
         };
 
-        const bucket = {
+        const bucketObj = {
             x: VW / 2, 
             y: 550,       
-            w: 220, h: 180, 
+            w: IMG_SIZES.bucket.w, h: IMG_SIZES.bucket.h, 
             scale: SCALE_FAR,
             scaleAnim: 1.0, 
-            ice: [],
-            droplets: [],
             angle: 0, 
-            init: function() {
-                for(let i=0; i<45; i++) {
-                    this.ice.push({
-                        x: (Math.random()-0.5) * (this.w - 30),
-                        y: (Math.random()-0.5) * (this.h - 50) - 10,
-                        rot: Math.random() * Math.PI,
-                        size: 25 + Math.random() * 15,
-                        glint: Math.random() > 0.5
-                    });
-                }
-                for(let i=0; i<60; i++) {
-                    this.droplets.push({
-                        x: (Math.random()-0.5) * (this.w),
-                        y: (Math.random()-0.5) * (this.h),
-                        r: Math.random() * 2 + 1,
-                        alpha: Math.random() * 0.4 + 0.1
-                    });
-                }
-            },
+            init: function() { },
             resetPos: function() {
                 this.x = VW/2;
                 this.y = 550;
@@ -271,19 +302,7 @@
                 }
             }
         };
-        bucket.init();
-
-        for(let i=0; i<40; i++) {
-            state.bgParticles.push({
-                xOffset: (Math.random()-0.5) * 500,
-                yOffset: Math.random() * 1200, 
-                swayRange: 30 + Math.random() * 50,
-                swaySpeed: 0.002 + Math.random() * 0.003,
-                riseSpeed: 0.5 + Math.random() * 1.5,
-                size: Math.random() * 4 + 1,
-                alpha: Math.random() * 0.5 + 0.1
-            });
-        }
+        bucketObj.init();
 
         const particles = [];
 
@@ -398,6 +417,39 @@
             if (type === 'success') navigator.vibrate([40, 50, 40, 50, 100]); 
         }
 
+        // --- PRELOADER ---
+        function loadAssets() {
+            let loaded = 0;
+            const keys = Object.keys(imageSources);
+            const total = keys.length;
+
+            if(total === 0) {
+                init();
+                return;
+            }
+
+            keys.forEach(key => {
+                const img = new Image();
+                img.src = imageSources[key];
+                img.onload = () => {
+                    loaded++;
+                    images[key] = img;
+                    if(loaded === total) {
+                        document.getElementById('loading-screen').style.opacity = 0;
+                        setTimeout(() => {
+                            document.getElementById('loading-screen').style.display = 'none';
+                            init();
+                        }, 500);
+                    }
+                };
+                img.onerror = () => {
+                    console.error("Failed to load: " + imageSources[key]);
+                    loaded++;
+                    if(loaded === total) init();
+                };
+            });
+        }
+
         function init() {
             resize();
             window.addEventListener('resize', resize);
@@ -449,31 +501,32 @@
             state.cameraShake *= 0.85; 
             ctx.translate(shakeX, state.cameraY + shakeY);
 
-            bucket.update();
-            let bScale = bucket.scale * bucket.scaleAnim; 
+            bucketObj.update();
+            let bScale = bucketObj.scale * bucketObj.scaleAnim; 
 
             ctx.save();
-            ctx.translate(bucket.x, bucket.y);
+            ctx.translate(bucketObj.x, bucketObj.y);
             ctx.scale(bScale, bScale); 
-            drawBucketBack();
+            drawBucketImage(); 
             drawStoredBottles(); 
             ctx.restore();
 
             // DRAW STATIONARY BOTTLE BODY (Big and close)
             ctx.save();
-            ctx.translate(VW/2, BOTTLE_BASE_Y); 
+            // Translate to center X, and the determined Cap Start Y position
+            ctx.translate(VW/2, CAP_START_Y); 
             ctx.scale(SCALE_NEAR, SCALE_NEAR);
             drawStationaryBottle();
             ctx.restore();
 
             // HANDLE FLYING CAP
             if(state.phase === 'flying') {
-                let distTotal = (VH - 150) - bucket.y;
-                let currentDist = bottle.y - bucket.y;
+                let distTotal = (VH - 150) - bucketObj.y;
+                let currentDist = bottle.y - bucketObj.y;
                 let progress = Math.max(0, Math.min(1, currentDist / distTotal));
                 
                 // Smoother scaling: Start 3.5 -> End 1.1
-                bottle.z = bucket.scale + (progress * (SCALE_NEAR - bucket.scale));
+                bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
             } else if (state.phase === 'idle') {
                 bottle.reset(); // Force perfect alignment in idle
             }
@@ -495,15 +548,9 @@
                 ctx.restore();
             }
 
-            ctx.save();
-            ctx.translate(bucket.x, bucket.y);
-            ctx.scale(bScale, bScale); 
-            drawBucketFront(); 
-            ctx.restore();
-
             updatePhysics();
             updateEffects();
-            drawParticles(); 
+            drawParticles();
             drawFloatingTexts();
 
             ctx.restore();
@@ -516,66 +563,39 @@
             requestAnimationFrame(loop);
         }
 
-        // === FIXED BACKGROUND (CENTERED + INFINITE LOOP) ===
+        // === IMAGE BASED BACKGROUND WITH BLACK OVERLAY ===
         function drawBackground() {
-            let cx = cvs.width / 2;
-            let cy = cvs.height / 2;
-            ctx.fillStyle = '#050505';
-            ctx.fillRect(0,0,cvs.width, cvs.height);
-
-            let energy = state.bgEnergy / 100; 
-            
-            let baseR = 20, baseG = 20, baseB = 20; 
-            let glowR = 20, glowG = 20, glowB = 40;
-
-            if(state.streak < 4) {
-                baseR = 20; baseG = 20; baseB = 20;
-                glowR = 20; glowG = 20; glowB = 40;
-            } else if (state.streak < 8) {
-                baseR = 40; baseG = 10; baseB = 10;
-                glowR = 80; glowG = 10; glowB = 10;
+            if(!images.bg) {
+                // Fallback if image fails
+                ctx.fillStyle = '#050505';
+                ctx.fillRect(0,0,cvs.width, cvs.height);
             } else {
-                baseR = 50; baseG = 40; baseB = 10;
-                glowR = 100; glowG = 80; glowB = 10;
+                // Cover Logic
+                let bgRatio = images.bg.width / images.bg.height;
+                let cvsRatio = cvs.width / cvs.height;
+                
+                if (cvsRatio > bgRatio) {
+                    // Canvas is wider than image
+                    let newH = cvs.width / bgRatio;
+                    ctx.drawImage(images.bg, 0, (cvs.height - newH)/2, cvs.width, newH);
+                } else {
+                    // Canvas is taller than image
+                    let newW = cvs.height * bgRatio;
+                    ctx.drawImage(images.bg, (cvs.width - newW)/2, 0, newW, cvs.height);
+                }
             }
 
-            let r = baseR + (energy * 100); 
-            let g = baseG + (energy * 50); 
-            let b = baseB + (energy * 50);
-
-            let time = globalTime * 0.5;
-            let grad = ctx.createRadialGradient(cx + Math.sin(time)*50, cy + Math.cos(time)*50, 10, cx, cy, Math.max(cvs.width, cvs.height));
-            
-            grad.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
-            grad.addColorStop(0.6, `rgba(${glowR}, ${glowG}, ${glowB}, 0.5)`);
-            grad.addColorStop(1, '#000');
-            
-            ctx.fillStyle = grad;
-            ctx.fillRect(0,0,cvs.width, cvs.height);
-
-            ctx.save();
-            ctx.fillStyle = `rgba(255,255,255,${0.1 + energy*0.2})`;
-            state.bgParticles.forEach(p => {
-                let sway = Math.sin(globalTime * p.swaySpeed) * p.swayRange;
-                let x = cx + p.xOffset + sway; 
-                let totalRise = globalTime * p.riseSpeed * 20;
-                let y = (cvs.height + p.yOffset - totalRise) % (cvs.height + 200);
-                if(y < -50) y += cvs.height + 200;
-
-                ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.arc(x, y, p.size, 0, Math.PI*2);
-                ctx.fill();
-            });
-            ctx.restore();
+            // Add Black Overlay for blur/darkening effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // 60% opacity black
+            ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
 
         function updatePhysics() {
             if(state.phase !== 'flying') return;
 
-            let distToBucket = Math.sqrt(Math.pow(bottle.x - bucket.x, 2) + Math.pow(bottle.y - bucket.y, 2));
+            let distToBucket = Math.sqrt(Math.pow(bottle.x - bucketObj.x, 2) + Math.pow(bottle.y - bucketObj.y, 2));
             
-            if(distToBucket < 220 && Math.abs(bottle.y - bucket.y) < 180 && bottle.vy > 0) {
+            if(distToBucket < 220 && Math.abs(bottle.y - bucketObj.y) < 180 && bottle.vy > 0) {
                 state.timeScale += (0.35 - state.timeScale) * 0.15; 
                 if(Math.random() > 0.8) triggerHaptic('tension');
             } else {
@@ -587,19 +607,18 @@
             bottle.y += bottle.vy * state.timeScale;
             bottle.rot += bottle.vRot * state.timeScale;
 
-            // FIX: Check side bounds so it resets if you flick wide
             if(bottle.y > VH + 200 || bottle.x < -100 || bottle.x > VW + 100) {
                 handleMiss();
             }
 
-            let targetY = bucket.y - (bucket.h * bucket.scale)/2;
-            let rimW = bucket.w * bucket.scale;
+            let targetY = bucketObj.y - (bucketObj.h * bucketObj.scale)/2;
+            let rimW = bucketObj.w * bucketObj.scale;
 
-            if(Math.abs(bottle.y - targetY) < 30 && bottle.vy > 0) {
+            if(Math.abs(bottle.y - targetY) < 50 && bottle.vy > 0) {
                 // FIX: Much wider hit detection (+30) to make it easier
-                if(Math.abs(bottle.x - bucket.x) < rimW/2 + 15) {
+                if(Math.abs(bottle.x - bucketObj.x) < rimW/2 + 15) {
                     handleScore();
-                } else if (Math.abs(bottle.x - bucket.x) < rimW/2 + 35) {
+                } else if (Math.abs(bottle.x - bucketObj.x) < rimW/2 + 35) {
                     bottle.vx *= -0.6;
                     bottle.vRot += (Math.random()-0.5) * 5; 
                     state.cameraShake = 30; 
@@ -618,16 +637,16 @@
             state.cameraShake = 40; 
             state.screenFlash = 0.4; 
             state.freezeFrame = 8; 
-            bucket.scaleAnim = 1.2; 
+            bucketObj.scaleAnim = 1.2; 
             triggerHaptic('success');
             
-            spawnParticles(bucket.x, bucket.y - 50, 'splash'); 
-            spawnParticles(bucket.x, bucket.y - 100, 'confetti'); 
+            spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
+            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti'); 
             
             let waveColor = '#fff';
             if(state.streak > 6) waveColor = '#c91a1a'; 
             else if(state.streak > 3) waveColor = '#a5f2f3'; 
-            spawnShockwave(bucket.x, bucket.y, waveColor);
+            spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
 
             if(state.mode === 'streak') {
                 state.streak++;
@@ -640,9 +659,9 @@
                 let msgs = ["SAUBER!", "GLATT!", "REIN!", "PERFEKT!"];
                 let msg = msgs[Math.floor(Math.random()*msgs.length)];
                 if(state.streak % 5 === 0) msg = "LEGENDÄR!";
-                spawnFloatingText(msg, bucket.x, bucket.y - 150);
+                spawnFloatingText(msg, bucketObj.x, bucketObj.y - 150);
             } else {
-                spawnFloatingText("TREFFER!", bucket.x, bucket.y - 150);
+                spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150);
             }
 
             setTimeout(() => {
@@ -672,37 +691,14 @@
             }, 500);
         }
 
-        function drawBucketBack() {
-            ctx.fillStyle = '#111';
-            ctx.beginPath();
-            ctx.ellipse(0, bucket.h/2, bucket.w/2 - 10, 15, 0, 0, Math.PI*2);
-            ctx.fill();
-
-            let grad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
-            grad.addColorStop(0, '#0a0a0a');
-            grad.addColorStop(0.5, '#222');
-            grad.addColorStop(1, '#0a0a0a');
-            ctx.fillStyle = grad;
-            
-            ctx.beginPath();
-            ctx.moveTo(-bucket.w/2, -bucket.h/2); 
-            ctx.lineTo(bucket.w/2, -bucket.h/2);
-            ctx.lineTo(bucket.w/2 - 15, bucket.h/2); 
-            ctx.lineTo(-bucket.w/2 + 15, bucket.h/2);
-            ctx.fill();
-
-            bucket.ice.forEach(i => {
-                ctx.save();
-                ctx.translate(i.x, i.y);
-                ctx.rotate(i.rot);
-                ctx.fillStyle = 'rgba(165, 242, 243, 0.3)'; 
-                ctx.fillRect(-i.size/2, -i.size/2, i.size, i.size);
-                if(i.glint) {
-                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-                    ctx.beginPath(); ctx.moveTo(-i.size/2, -i.size/2); ctx.lineTo(0, -i.size/2); ctx.lineTo(-i.size/2, 0); ctx.fill();
-                }
-                ctx.restore();
-            });
+        // === BUCKET IMAGE ===
+        function drawBucketImage() {
+            if(images.bucket) {
+                let w = IMG_SIZES.bucket.w;
+                let h = IMG_SIZES.bucket.h;
+                // Draw centered at current translate point
+                ctx.drawImage(images.bucket, -w/2, -h/2, w, h);
+            }
         }
 
         function drawStoredBottles() {
@@ -710,135 +706,31 @@
                 ctx.save();
                 ctx.translate(b.relX, b.relY); 
                 ctx.rotate(b.rot);
-                ctx.scale(2.0, 2.0); 
-                drawCapGraphic(); // Draw Caps inside bucket
+                ctx.scale(1.2, 1.2); 
+                drawCapGraphic(); 
                 ctx.restore();
             });
         }
 
-        function drawBucketFront() {
-            bucket.ice.forEach((i, idx) => {
-                if(idx % 2 === 0) return; 
-                ctx.save();
-                ctx.translate(i.x, i.y);
-                ctx.rotate(i.rot);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                ctx.lineWidth = 1;
-                ctx.fillRect(-i.size/2, -i.size/2, i.size, i.size);
-                ctx.strokeRect(-i.size/2, -i.size/2, i.size, i.size);
-                ctx.restore();
-            });
-
-            let grad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
-            grad.addColorStop(0, '#050505'); 
-            grad.addColorStop(0.2, '#2a2a2a'); 
-            grad.addColorStop(0.5, '#1a1a1a'); 
-            grad.addColorStop(0.8, '#2a2a2a'); 
-            grad.addColorStop(1, '#050505'); 
-            ctx.fillStyle = grad;
-            
-            ctx.beginPath();
-            ctx.moveTo(-bucket.w/2, -bucket.h/2); 
-            ctx.lineTo(bucket.w/2, -bucket.h/2);
-            ctx.lineTo(bucket.w/2 - 15, bucket.h/2); 
-            ctx.lineTo(-bucket.w/2 + 15, bucket.h/2);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
-            bucket.droplets.forEach(d => {
-                ctx.beginPath();
-                ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
-                ctx.fill();
-            });
-
-            let rimGrad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
-            rimGrad.addColorStop(0, '#555'); rimGrad.addColorStop(0.5, '#eee'); rimGrad.addColorStop(1, '#555');
-            ctx.fillStyle = rimGrad;
-            ctx.beginPath();
-            ctx.ellipse(0, -bucket.h/2, bucket.w/2, 6, 0, 0, Math.PI*2);
-            ctx.fill();
-
-            ctx.save();
-            ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
-            ctx.translate(0, 10); ctx.rotate(-0.05); 
-            ctx.fillStyle = '#fff'; ctx.font = "bold 28px sans-serif"; 
-            ctx.textAlign = 'center'; ctx.textBaseline='middle';
-            ctx.fillText("EISKALT", 0, -15);
-            ctx.fillStyle = '#c91a1a'; ctx.font = "bold 16px sans-serif"; 
-            ctx.fillText("fritz-kola", 0, 15);
-            ctx.restore();
-        }
-
+        // === BOTTLE IMAGE (STATIONARY) - UPDATED POSITION ===
         function drawStationaryBottle() {
-            let bodyGrad = ctx.createLinearGradient(-13, 0, 13, 0);
-            bodyGrad.addColorStop(0, 'rgba(10, 5, 5, 0.95)');
-            bodyGrad.addColorStop(0.3, 'rgba(60, 30, 30, 0.95)'); 
-            bodyGrad.addColorStop(0.6, 'rgba(20, 5, 5, 0.95)');
-            bodyGrad.addColorStop(1, 'rgba(10, 5, 5, 0.95)');
-            
-            ctx.fillStyle = bodyGrad;
-            ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
-            
-            ctx.beginPath();
-            ctx.roundRect(-13, -35, 26, 70, 5); 
-            ctx.rect(-8, BOTTLE_NECK_REL_Y, 16, 25); 
-            ctx.fill(); 
-            ctx.stroke();
-            
-            let labelGrad = ctx.createLinearGradient(-14, 0, 14, 0);
-            labelGrad.addColorStop(0, '#800'); 
-            labelGrad.addColorStop(0.5, '#c91a1a'); 
-            labelGrad.addColorStop(1, '#800'); 
-            
-            ctx.fillStyle = labelGrad;
-            ctx.fillRect(-14, -20, 28, 25);
-            
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign='center';
-            ctx.fillText('fritz', 0, -12); ctx.fillText('kola', 0, -3);
-            
-            ctx.fillStyle = 'rgba(255,255,255,0.15)'; 
-            ctx.fillRect(4, -30, 3, 60); 
-            ctx.fillStyle = 'rgba(255,255,255,0.08)'; 
-            ctx.fillRect(-6, -30, 2, 60); 
-
-            // Neck top (Dark hole)
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.ellipse(0, BOTTLE_NECK_REL_Y, 8, 3, 0, 0, Math.PI*2);
-            ctx.fill();
+            if(images.bottle) {
+                let w = IMG_SIZES.bottle.w;
+                let h = IMG_SIZES.bottle.h;
+                // We are translated to (VW/2, CAP_START_Y).
+                // Bottle centered horizontally (-w/2).
+                // Vertically, slightly offset (-10) so the cap sits nicely on top
+                ctx.drawImage(images.bottle, -w/2, -10, w, h); 
+            }
         }
 
+        // === CAP IMAGE (FLYING) ===
         function drawCapGraphic() {
-            // Cap Side
-            let capGrad = ctx.createLinearGradient(-9, 0, 9, 0);
-            capGrad.addColorStop(0, '#999');
-            capGrad.addColorStop(0.3, '#fff');
-            capGrad.addColorStop(0.6, '#ccc');
-            capGrad.addColorStop(1, '#999');
-            ctx.fillStyle = capGrad;
-            
-            // Draw Cylinder-ish shape
-            ctx.beginPath();
-            ctx.moveTo(-9, -4);
-            ctx.lineTo(9, -4);
-            ctx.lineTo(9, 4);
-            ctx.lineTo(-9, 4);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Cap Top (Ellipse)
-            ctx.beginPath();
-            ctx.ellipse(0, -4, 9, 3, 0, 0, Math.PI*2);
-            ctx.fillStyle = '#eee';
-            ctx.fill();
-            
-            // Ridges
-            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-            ctx.lineWidth = 1;
-            for(let i=-7; i<8; i+=2) {
-                ctx.beginPath(); ctx.moveTo(i, -3); ctx.lineTo(i, 4); ctx.stroke();
+            if(images.cap) {
+                let w = IMG_SIZES.cap.w;
+                let h = IMG_SIZES.cap.h;
+                // Draw centered at current translate point
+                ctx.drawImage(images.cap, -w/2, -h/2, w, h);
             }
         }
 
@@ -847,9 +739,17 @@
 
         function handleInputStart(x, y) {
             if(state.phase !== 'idle') return;
+            // FIX: Adjust input coordinates based on the container, not window
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+            
+            // Adjust X/Y to be relative to the canvas inside the container
+            let relativeX = x - rect.left;
+            let relativeY = y - rect.top;
+
             let offsetX = (cvs.width - (VW * scale)) / 2;
-            let virtX = (x - offsetX) / scale;
-            let virtY = y / scale;
+            let virtX = (relativeX - offsetX) / scale;
+            let virtY = relativeY / scale;
 
             if(virtY > VH / 2) {
                 input.active = true;
@@ -864,9 +764,15 @@
 
         function handleInputMove(x, y) {
             if(!input.active) return;
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+
+            let relativeX = x - rect.left;
+            let relativeY = y - rect.top;
+
             let offsetX = (cvs.width - (VW * scale)) / 2;
-            input.currX = (x - offsetX) / scale;
-            input.currY = y / scale;
+            input.currX = (relativeX - offsetX) / scale;
+            input.currY = relativeY / scale;
         }
 
         function handleInputEnd() {
@@ -887,10 +793,12 @@
             }
         }
 
+        // Event Listeners (Mouse)
         window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
         window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
         window.addEventListener('mouseup', handleInputEnd);
         
+        // Event Listeners (Touch)
         window.addEventListener('touchstart', e => { 
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
             e.preventDefault(); 
@@ -947,15 +855,48 @@
             });
             showScreen('');
             bottle.reset(); 
-            bucket.resetPos();
+            bucketObj.resetPos();
         }
         function submitRaffle() { alert("Viel Glück!"); location.reload(); }
+        
+        // FIX: Resize based on WINDOW (to detect PC), but use CONTAINER for canvas
         function resize() {
-            scale = Math.min(window.innerWidth / VW, window.innerHeight / VH);
-            cvs.width = window.innerWidth;
-            cvs.height = window.innerHeight;
+            const container = document.getElementById('game-container');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            const screenW = window.innerWidth; // Use full screen width for PC detection
+            
+            cvs.width = w;
+            cvs.height = h;
+            
+            // USE GAME CONFIG
+            // If screen is wider than 768px, we assume it's a PC/Tablet
+            if(screenW < 768) {
+                // Mobile
+                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleSize;
+                IMG_SIZES.bottle.h = GAME_CONFIG.mobile.bottleSize;
+                IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
+                IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize;
+                CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom;
+            } else {
+                // PC
+                IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleSize;
+                IMG_SIZES.bottle.h = GAME_CONFIG.pc.bottleSize;
+                IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize;
+                IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize;
+                CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom;
+            }
+
+            if(state.phase === 'idle') {
+                bottle.y = CAP_START_Y;
+            }
+
+            scale = Math.min(w / VW, h / VH);
         }
-        init();
+
+        // START LOADING
+        loadAssets();
+
     </script>
 </body>
 </html>
