@@ -1,587 +1,961 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>fritz-kola | CAP FLICK</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>fritz-kola | DECKEL SCHNIPPEN</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap');
 
-        :root { --bg: #050505; --white: #f1f1f1; --red: #c91a1a; }
-        
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        :root {
+            --bg: #050505;
+            --white: #f1f1f1;
+            --red: #c91a1a;
+            --font-head: 'Anton', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 
         body {
             margin: 0; padding: 0;
             background-color: var(--bg);
-            font-family: 'Inter', sans-serif;
+            color: var(--white);
+            font-family: var(--font-body);
             overflow: hidden;
             height: 100vh; width: 100vw;
             display: flex; justify-content: center; align-items: center;
-            touch-action: none;
+            touch-action: none; 
         }
 
-        #game-layer {
+        #game-container {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            overflow: hidden;
             background: #000;
         }
 
         canvas { display: block; width: 100%; height: 100%; }
 
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 10;
-            display: flex; flex-direction: column; justify-content: space-between;
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+
+        /* HEADER */
+        header {
+            position: absolute; top: 0; left: 0; width: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding-top: 40px; z-index: 50; pointer-events: none; 
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            opacity: 1; transform: translateY(0);
         }
+        header.hidden-ui { opacity: 0; transform: translateY(-20px); }
 
-        .hud-top { padding-top: 40px; text-align: center; width: 100%; }
-        .logo { font-family: 'Anton', sans-serif; font-size: 3rem; text-transform: uppercase; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.8); }
+        .logo { font-family: var(--font-head); font-size: 3rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
         .red { color: var(--red); }
-        .score { font-family: 'Anton', sans-serif; font-size: 1.5rem; color: #888; margin-top: 5px; }
-        #score-val { color: #fff; font-size: 2rem; }
+        
+        #score-box {
+            font-family: var(--font-head); font-size: 1.5rem; color: #888;
+            margin-top: 5px; letter-spacing: 1px; text-shadow: 0 2px 4px #000;
+        }
+        #score-val { color: var(--white); font-size: 2.2rem; }
+        .pulse-text { animation: pulse 0.3s ease-in-out; color: var(--red) !important; text-shadow: 0 0 30px var(--red); }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
 
+        /* SCREENS */
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5,5,5,0.95);
-            display: none;
+            background: rgba(5,5,5,0.98); 
+            display: none; 
             flex-direction: column; justify-content: center; align-items: center;
             text-align: center; padding: 20px;
-            pointer-events: auto; z-index: 20;
+            pointer-events: auto; 
         }
-        .screen.active { display: flex; animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .screen.active { display: flex; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #s-intro { background: rgba(0,0,0,0.85); }
 
-        h1 { font-family: 'Anton', sans-serif; font-size: 3rem; margin: 0 0 10px 0; line-height: 1; text-transform: uppercase; color: #fff; }
-        p { color: #aaa; margin-bottom: 30px; max-width: 300px; line-height: 1.5; }
+        h1 { font-family: var(--font-head); font-size: 3.5rem; margin: 0; line-height: 0.9; text-transform: uppercase; letter-spacing: 1px; }
+        h2 { font-family: var(--font-head); font-size: 2rem; margin: 0 0 10px 0; color: var(--white); }
+        p { color: #aaa; margin: 15px 0 30px 0; max-width: 320px; line-height: 1.4; font-size: 1rem; }
 
         .btn {
-            background: #fff; color: #000; font-family: 'Anton', sans-serif; font-size: 1.5rem;
-            padding: 20px 40px; border: none; cursor: pointer; text-transform: uppercase;
-            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-            transition: transform 0.1s;
+            background: var(--white); color: var(--bg); font-family: var(--font-head); font-size: 1.3rem;
+            padding: 20px 0; width: 100%; max-width: 280px; border: none; cursor: pointer; text-transform: uppercase; 
+            margin: 8px 0;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            position: relative; pointer-events: auto; user-select: none; transition: transform 0.1s;
+            box-shadow: 0 5px 20px rgba(255, 255, 255, 0.15);
         }
-        .btn:active { transform: scale(0.95); background: #ccc; }
+        .btn:active { transform: scale(0.96); background: #ccc; }
+        .btn-outline { background: transparent; color: var(--white); border: 2px solid rgba(255,255,255,0.3); box-shadow: none; }
+        .hidden { display: none !important; }
 
-        #tutorial {
-            position: absolute; bottom: 35%; left: 0; width: 100%; text-align: center;
-            pointer-events: none; opacity: 0; transition: opacity 0.5s;
+        input { 
+            border: 1px solid #333; background: #111; color: #fff; padding: 15px; width: 100%; 
+            font-family: monospace; text-align: center; margin-bottom: 10px; font-size: 1.1rem; outline: none; 
+            pointer-events: auto; user-select: text; -webkit-user-select: text;
         }
-        #tutorial.show { opacity: 1; }
-        .hand-icon { font-size: 4rem; animation: flick 1.5s infinite; display: block; filter: drop-shadow(0 5px 10px #000); }
-        @keyframes flick { 0% { transform: translateY(20px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
+
+        #tutorial-overlay {
+            position: absolute; bottom: 35%; left: 0; width: 100%;
+            text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 15;
+        }
+        #tutorial-overlay.show { opacity: 1; }
+        .hand { font-size: 3rem; display: block; animation: flickUp 1.5s infinite; filter: drop-shadow(0 5px 5px #000); }
+        .hint { font-family: var(--font-head); font-size: 1.2rem; text-transform: uppercase; text-shadow: 0 2px 4px #000; letter-spacing: 1px; }
+        
+        @keyframes flickUp { 
+            0% { transform: translateY(20px) rotate(0deg); opacity: 0; } 
+            20% { opacity: 1; }
+            80% { transform: translateY(-40px) rotate(-10deg); opacity: 0; } 
+            100% { opacity: 0; } 
+        }
 
     </style>
 </head>
 <body>
 
-    <div id="game-layer">
-        <canvas id="c"></canvas>
-    </div>
-
-    <div id="ui-layer">
-        <div class="hud-top">
+    <div id="game-container">
+        <header id="main-header" class="hidden-ui">
             <div class="logo">fritz<span class="red">-</span>kola</div>
-            <div class="score">STREAK: <span id="score-val">0</span></div>
+            <div id="score-box">STREAK: <span id="score-val">0</span> / 10</div>
+        </header>
+
+        <div id="game-layer">
+            <canvas id="c"></canvas>
+            <div id="tutorial-overlay">
+                <span class="hand">👆</span>
+                <span class="hint">ZUM SCHIEßEN SCHNIPPEN</span>
+            </div>
         </div>
-        <div id="tutorial">
-            <span class="hand-icon">👆</span>
-            <div style="font-family:'Anton'; font-size:1.5rem; color:#fff; text-shadow:0 2px 4px #000;">DRAG UP TO SHOOT</div>
+
+        <div id="ui-layer">
+            <div id="s-intro" class="screen active">
+                <h1>DECKEL AB</h1>
+                <p>Flasche scannen um zu spielen.<br>Schnipp den Deckel in den Eimer.</p>
+                <div id="token-status" style="margin-bottom: 20px; font-family: monospace; color: var(--red); font-size: 0.9rem;">Prüfe Token...</div>
+                <button class="btn hidden" id="btn-start" ontouchstart="startGame()" onclick="startGame()">SPIEL STARTEN</button>
+            </div>
+
+            <div id="s-instant" class="screen">
+                <h1 id="iw-title">SAUBER!</h1>
+                <p id="iw-msg">Prüfe Sofortgewinn...</p>
+                
+                <div id="iw-win-container" class="hidden" style="width: 100%; max-width: 320px;">
+                    <h2 style="color: #FFD700;">SHIRT GEWONNEN!</h2>
+                    <p>Gib deine E-Mail ein um den Gewinn zu sichern.</p>
+                    <input type="email" id="email-instant" placeholder="DEINE E-MAIL ADRESSE">
+                    <button class="btn" ontouchstart="claimInstant()" onclick="claimInstant()">GEWINN SICHERN</button>
+                </div>
+
+                <div id="iw-loss-container" class="hidden" style="width: 100%; max-width: 320px;">
+                    <h2>KEIN SOFORTGEWINN</h2>
+                    <p>Aber du kannst noch groß abräumen.</p>
+                </div>
+
+                <div id="iw-continue-container" class="hidden" style="width: 100%; max-width: 320px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+                    <h3 style="margin:0 0 10px 0; font-family:var(--font-head); color:var(--white);">DAS GEWINNSPIEL</h3>
+                    <p style="margin: 0 0 15px 0; color:#888;">Triff noch 9 Mal in Folge für die große Verlosung.</p>
+                    <button class="btn" ontouchstart="startStreakMode()" onclick="startStreakMode()">WEITER (NOCH 9)</button>
+                    <button class="btn btn-outline" style="margin-top:10px" ontouchstart="location.reload()" onclick="location.reload()">NEIN DANKE</button>
+                </div>
+            </div>
+
+            <div id="s-fail" class="screen">
+                <h1 style="color: #666;">DANEBEN!</h1>
+                <p>Die Serie ist gerissen.<br>Dieser Token ist nun verbraucht.</p>
+                <button class="btn" ontouchstart="location.reload()" onclick="location.reload()">NEUE FLASCHE SCANNEN</button>
+            </div>
+
+            <div id="s-raffle" class="screen">
+                <h1 style="color: #FFD700;">LEGENDÄR!</h1>
+                <p>10 Treffer in Folge.<br>Du bist im Lostopf.</p>
+                <div style="width: 100%; max-width: 320px;">
+                    <input type="email" id="email-raffle" placeholder="DEINE E-MAIL ADRESSE">
+                    <button class="btn" ontouchstart="submitRaffle()" onclick="submitRaffle()">TEILNEHMEN</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="screen-start" class="screen active">
-        <h1>CAP FLICK</h1>
-        <p>Drag up to aim.<br>Release to fire.<br>Sink 10 in a row.</p>
-        <button class="btn" onclick="Game.start()">START GAME</button>
-    </div>
+    <script>
+        const cvs = document.getElementById('c');
+        const ctx = cvs.getContext('2d');
+        const VH = 1000; 
+        const VW = 600;
+        let scale = 1; 
+        let globalTime = 0; 
 
-    <div id="screen-fail" class="screen">
-        <h1 style="color:#666">MISS!</h1>
-        <p>The streak is broken.</p>
-        <button class="btn" onclick="Game.retry()">TRY AGAIN</button>
-    </div>
+        // --- PHYSICS CONFIG (TUNED) ---
+        const GRAVITY = 0.85;  
+        const POWER_X = 0.14;  
+        const POWER_Y = 0.16;  
+        
+        // --- VISUAL CONFIG ---
+        const SCALE_NEAR = 3.5; 
+        const SCALE_FAR = 1.1; 
+        const BOTTLE_BASE_Y = VH + 60; 
+        const BOTTLE_NECK_REL_Y = -60; 
 
-    <div id="screen-win" class="screen">
-        <h1 class="red">LEGENDARY!</h1>
-        <p>You hit a streak of 10!</p>
-        <button class="btn" onclick="location.reload()">CLAIM PRIZE</button>
-    </div>
+        const state = {
+            token: null,
+            phase: 'idle', 
+            mode: 'warmup', 
+            streak: 0,
+            cameraY: 0,
+            cameraShake: 0,
+            screenFlash: 0, 
+            timeScale: 1.0, 
+            freezeFrame: 0, 
+            bgEnergy: 0, 
+            wonBottles: [],
+            shockwaves: [],
+            floatTexts: [],
+            bgParticles: []
+        };
 
-<script>
-// === CORE CONFIGURATION ===
-const CFG = {
-    gravity: 0.55,
-    powerMultiplier: 0.18, 
-    maxPower: 40,          
-    spawnYOffset: 190,     // Cap sits higher up on the new bottle neck
-    bucketY: 300           
-};
-
-// === GAME STATE ===
-const State = {
-    w: 0, h: 0,
-    phase: 'IDLE', 
-    streak: 0,
-    frames: 0,
-    bgEnergy: 0,
-    particles: [],
-    bgSwirls: [],
-    wonCaps: []
-};
-
-const Canvas = document.getElementById('c');
-const Ctx = Canvas.getContext('2d');
-
-// === INPUT CONTROLLER ===
-const Input = {
-    x: 0, y: 0,
-    startX: 0, startY: 0,
-    isDown: false,
-
-    init() {
-        window.addEventListener('touchstart', e => {
-            if(e.target.tagName === 'BUTTON') return;
-            this.start(e.touches[0].clientX, e.touches[0].clientY);
-        }, {passive: false});
-        window.addEventListener('touchmove', e => {
-            this.move(e.touches[0].clientX, e.touches[0].clientY);
-        }, {passive: false});
-        window.addEventListener('touchend', () => this.end());
-
-        window.addEventListener('mousedown', e => this.start(e.clientX, e.clientY));
-        window.addEventListener('mousemove', e => this.move(e.clientX, e.clientY));
-        window.addEventListener('mouseup', () => this.end());
-    },
-
-    start(x, y) {
-        if(State.phase !== 'IDLE') return;
-        if(y < State.h - 400) return; 
-
-        this.isDown = true;
-        this.startX = x; this.startY = y;
-        this.x = x; this.y = y;
-        State.phase = 'AIMING';
-        document.getElementById('tutorial').classList.remove('show');
-    },
-
-    move(x, y) {
-        if(!this.isDown) return;
-        this.x = x; this.y = y;
-    },
-
-    end() {
-        if(!this.isDown) return;
-        this.isDown = false;
-
-        const dx = this.x - this.startX;
-        const dy = this.y - this.startY;
-
-        if (dy < -30) {
-            let vx = dx * CFG.powerMultiplier;
-            let vy = dy * CFG.powerMultiplier;
-            if(vy < -CFG.maxPower) vy = -CFG.maxPower;
-            Game.shoot(vx, vy);
-        } else {
-            State.phase = 'IDLE';
-        }
-    }
-};
-
-// === CAP ENTITY ===
-const Cap = {
-    x: 0, y: 0, z: 1,
-    vx: 0, vy: 0,
-    rot: 0, vRot: 0,
-    
-    reset() {
-        this.x = State.w / 2;
-        this.y = State.h - CFG.spawnYOffset;
-        this.z = 1;
-        this.vx = 0; this.vy = 0;
-        this.rot = 0; this.vRot = 0;
-        State.phase = 'IDLE';
-    },
-
-    update() {
-        if(State.phase !== 'FLYING') return;
-
-        this.vy += CFG.gravity;
-        this.x += this.vx;
-        this.y += this.vy;
-        this.rot += this.vRot;
-
-        let distTotal = (State.h - CFG.spawnYOffset) - CFG.bucketY;
-        let distCurr = (State.h - CFG.spawnYOffset) - this.y;
-        let progress = Math.max(0, Math.min(1, distCurr / distTotal));
-        this.z = 1.0 - (progress * 0.5);
-
-        if(this.vy > 0 && Math.abs(this.y - CFG.bucketY) < 30) {
-            let bucketW = 80 * this.z; 
-            let distToCenter = Math.abs(this.x - (State.w/2));
-
-            if(distToCenter < bucketW) {
-                Game.score();
-            } else if (distToCenter < bucketW + 25) {
-                this.vx *= -0.6;
-                this.vy *= -0.5;
-                this.vRot += 0.5;
-                Effects.spark(this.x, this.y);
+        const bottle = {
+            x: 0, y: 0, w: 22, h: 8, z: SCALE_NEAR, 
+            vx: 0, vy: 0, rot: 0, vRot: 0,
+            reset: function() {
+                this.x = VW / 2; 
+                this.y = BOTTLE_BASE_Y + (BOTTLE_NECK_REL_Y * SCALE_NEAR);
+                this.z = SCALE_NEAR; 
+                this.vx = 0; this.vy = 0; this.rot = 0; this.vRot = 0;
+                state.phase = 'idle';
+                state.cameraY = 0;
+                state.timeScale = 1.0; 
             }
-        }
+        };
 
-        if(this.y > State.h + 200 || this.x < -100 || this.x > State.w + 100) {
-            Game.miss();
-        }
-    }
-};
-
-// === RENDERER ===
-const Render = {
-    draw() {
-        this.drawBackground();
-
-        Ctx.save();
-        Ctx.translate(Bucket.x, Bucket.y);
-        Ctx.scale(0.5, 0.5); 
-        this.drawBucketBack();
-        this.drawCapsInBucket();
-        Ctx.restore();
-
-        // Draw the new, better bottle
-        this.drawLauncher();
-
-        if(State.phase === 'AIMING' && Input.isDown) {
-            this.drawTrajectory();
-        }
-
-        if(State.phase !== 'SCORING') {
-            this.drawCap();
-        }
-
-        Ctx.save();
-        Ctx.translate(Bucket.x, Bucket.y);
-        Ctx.scale(0.5, 0.5);
-        this.drawBucketFront();
-        Ctx.restore();
-
-        this.drawEffects();
-        
-        if(State.screenFlash > 0) {
-            Ctx.fillStyle = `rgba(255,255,255,${State.screenFlash})`;
-            Ctx.fillRect(0,0,State.w, State.h);
-            State.screenFlash -= 0.1;
-        }
-    },
-
-    drawTrajectory() {
-        let dx = Input.x - Input.startX;
-        let dy = Input.y - Input.startY;
-        if(dy >= 0) return;
-
-        let simX = Cap.x;
-        let simY = Cap.y;
-        let simVx = dx * CFG.powerMultiplier;
-        let simVy = dy * CFG.powerMultiplier;
-        if(simVy < -CFG.maxPower) simVy = -CFG.maxPower;
-
-        Ctx.beginPath();
-        Ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-        Ctx.lineWidth = 4;
-        Ctx.setLineDash([10, 10]);
-        Ctx.moveTo(simX, simY);
-
-        for(let i=0; i<15; i++) {
-            simX += simVx;
-            simY += simVy;
-            simVy += CFG.gravity;
-            Ctx.lineTo(simX, simY);
-        }
-        Ctx.stroke();
-        Ctx.setLineDash([]);
-    },
-
-    drawBackground() {
-        let cx = State.w / 2;
-        let cy = State.h / 2;
-        let energy = State.bgEnergy / 100;
-        
-        let r = 10 + (energy * 60);
-        let grad = Ctx.createRadialGradient(cx, cy, 10, cx, cy, State.h);
-        grad.addColorStop(0, `rgb(${r}, 10, 20)`);
-        grad.addColorStop(1, '#020202');
-        Ctx.fillStyle = grad;
-        Ctx.fillRect(0,0,State.w, State.h);
-
-        Ctx.save();
-        Ctx.translate(cx, cy);
-        State.bgSwirls.forEach(p => {
-            p.angle += p.speed;
-            let dist = p.dist + Math.sin(State.frames*0.02 + p.dist)*20;
-            let px = Math.cos(p.angle) * dist;
-            let py = Math.sin(p.angle) * dist;
-            Ctx.globalAlpha = 0.2 + (energy * 0.3);
-            Ctx.fillStyle = '#fff';
-            Ctx.beginPath(); Ctx.arc(px, py, p.size, 0, Math.PI*2); Ctx.fill();
-        });
-        Ctx.restore();
-    },
-
-    // === NEW, REALISTIC BOTTLE DRAWING ===
-    drawLauncher() {
-        let cx = State.w / 2;
-        let cy = State.h;
-
-        Ctx.save();
-        Ctx.translate(cx, cy);
-
-        // 1. The Glass Body (Dark with gradients)
-        let grad = Ctx.createLinearGradient(-38, 0, 38, 0);
-        grad.addColorStop(0, '#050505');
-        grad.addColorStop(0.2, '#222'); // Highlight left
-        grad.addColorStop(0.5, '#0a0a0a'); // Dark center
-        grad.addColorStop(0.8, '#222'); // Highlight right
-        grad.addColorStop(1, '#050505');
-        Ctx.fillStyle = grad;
-
-        Ctx.beginPath();
-        // Start bottom left
-        Ctx.moveTo(-38, 0);
-        // Shoulder curve up to neck base
-        Ctx.quadraticCurveTo(-38, -100, -25, -150);
-        // Straight up neck to lip
-        Ctx.lineTo(-25, -190);
-        // Lip flare out
-        Ctx.lineTo(-28, -195);
-        Ctx.lineTo(-28, -205);
-        // Top of lip
-        Ctx.lineTo(28, -205);
-        // Lip flare in
-        Ctx.lineTo(28, -195);
-        Ctx.lineTo(25, -190);
-        // Straight down neck
-        Ctx.lineTo(25, -150);
-        // Shoulder curve down to bottom right
-        Ctx.quadraticCurveTo(38, -100, 38, 0);
-        Ctx.closePath();
-        Ctx.fill();
-
-        // 2. Glass Highlights (Crucial for realism)
-        Ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        // Left long highlight following the curve
-        Ctx.beginPath();
-        Ctx.moveTo(-20, 0);
-        Ctx.quadraticCurveTo(-20, -100, -12, -150);
-        Ctx.lineTo(-12, -190);
-        Ctx.lineTo(-16, -190);
-        Ctx.lineTo(-16, -150);
-        Ctx.quadraticCurveTo(-28, -100, -28, 0);
-        Ctx.fill();
-
-        // Right sharp highlight on neck
-        Ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        Ctx.fillRect(12, -190, 3, 190);
-
-
-        // 3. The Label (Sits on the curved shoulder)
-        Ctx.fillStyle = '#c91a1a';
-        Ctx.fillRect(-30, -120, 60, 50);
-        Ctx.fillStyle = '#fff';
-        Ctx.font = "bold 13px sans-serif";
-        Ctx.textAlign = "center";
-        Ctx.fillText("fritz-kola", 0, -90);
-
-        Ctx.restore();
-    },
-
-    drawCap() {
-        Ctx.save();
-        Ctx.translate(Cap.x, Cap.y);
-        Ctx.scale(Cap.z, Cap.z);
-        Ctx.rotate(Cap.rot);
-
-        // Metal Rim
-        Ctx.fillStyle = '#ccc';
-        Ctx.beginPath(); Ctx.arc(0,0, 26, 0, Math.PI*2); Ctx.fill();
-
-        // Red Top
-        let grad = Ctx.createRadialGradient(0,0,0,0,0,22);
-        grad.addColorStop(0, '#ff5555');
-        grad.addColorStop(1, '#c91a1a');
-        Ctx.fillStyle = grad;
-        Ctx.beginPath(); Ctx.arc(0,0, 22, 0, Math.PI*2); Ctx.fill();
-
-        // Text
-        Ctx.fillStyle = '#fff';
-        Ctx.font = "bold 11px sans-serif";
-        Ctx.textAlign = "center";
-        Ctx.textBaseline = "middle";
-        Ctx.fillText("kola", 0, 1);
-
-        Ctx.restore();
-    },
-
-    drawBucketBack() {
-        Ctx.fillStyle = '#111';
-        Ctx.beginPath(); Ctx.ellipse(0, 90, 100, 20, 0, 0, Math.PI*2); Ctx.fill();
-
-        let grad = Ctx.createLinearGradient(-110, 0, 110, 0);
-        grad.addColorStop(0, '#0a0a0a'); grad.addColorStop(0.5, '#222'); grad.addColorStop(1, '#0a0a0a');
-        Ctx.fillStyle = grad;
-        Ctx.beginPath(); Ctx.moveTo(-110, -90); Ctx.lineTo(110, -90); Ctx.lineTo(100, 90); Ctx.lineTo(-100, 90); Ctx.fill();
-    },
-
-    drawBucketFront() {
-        let grad = Ctx.createLinearGradient(-110, 0, 110, 0);
-        grad.addColorStop(0, 'rgba(10,10,10,0.9)');
-        grad.addColorStop(0.2, 'rgba(50,50,50,0.8)');
-        grad.addColorStop(0.5, 'rgba(20,20,20,0.8)');
-        grad.addColorStop(0.8, 'rgba(50,50,50,0.8)');
-        grad.addColorStop(1, 'rgba(10,10,10,0.9)');
-        Ctx.fillStyle = grad;
-        Ctx.beginPath(); Ctx.moveTo(-110, -90); Ctx.lineTo(110, -90); Ctx.lineTo(100, 90); Ctx.lineTo(-100, 90); Ctx.fill();
-
-        // Rim
-        Ctx.strokeStyle = '#888'; Ctx.lineWidth = 6;
-        Ctx.beginPath(); Ctx.ellipse(0, -90, 110, 10, 0, 0, Math.PI*2); Ctx.stroke();
-
-        Ctx.fillStyle = '#fff'; Ctx.font = "bold 24px sans-serif"; Ctx.textAlign = "center"; Ctx.fillText("ICE COLD", 0, 0);
-    },
-
-    drawCapsInBucket() {
-        State.wonCaps.forEach(c => {
-            Ctx.save();
-            Ctx.translate(c.x, c.y);
-            Ctx.rotate(c.r);
-            Ctx.fillStyle = '#c91a1a';
-            Ctx.beginPath(); Ctx.arc(0,0, 15, 0, Math.PI*2); Ctx.fill();
-            Ctx.fillStyle = '#fff'; Ctx.font="10px sans-serif"; Ctx.fillText("k", 0, 3);
-            Ctx.restore();
-        });
-    },
-
-    drawEffects() {
-        State.particles.forEach((p, i) => {
-            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
-            if(p.life <= 0) { State.particles.splice(i, 1); return; }
-            Ctx.globalAlpha = p.life;
-            Ctx.fillStyle = p.color;
-            if(p.type === 'confetti') {
-                Ctx.save(); Ctx.translate(p.x, p.y); Ctx.rotate(p.life*10); Ctx.fillRect(-3, -3, 6, 6); Ctx.restore();
-            } else {
-                Ctx.fillRect(p.x, p.y, 3, 3);
+        const bucket = {
+            x: VW / 2, 
+            y: 550,       
+            w: 220, h: 180, 
+            scale: SCALE_FAR,
+            scaleAnim: 1.0, 
+            ice: [],
+            droplets: [],
+            angle: 0, 
+            init: function() {
+                for(let i=0; i<45; i++) {
+                    this.ice.push({
+                        x: (Math.random()-0.5) * (this.w - 30),
+                        y: (Math.random()-0.5) * (this.h - 50) - 10,
+                        rot: Math.random() * Math.PI,
+                        size: 25 + Math.random() * 15,
+                        glint: Math.random() > 0.5
+                    });
+                }
+                for(let i=0; i<60; i++) {
+                    this.droplets.push({
+                        x: (Math.random()-0.5) * (this.w),
+                        y: (Math.random()-0.5) * (this.h),
+                        r: Math.random() * 2 + 1,
+                        alpha: Math.random() * 0.4 + 0.1
+                    });
+                }
+            },
+            resetPos: function() {
+                this.x = VW/2;
+                this.y = 550;
+                this.angle = 0;
+            },
+            update: function() {
+                this.scaleAnim += (1.0 - this.scaleAnim) * 0.1;
+                
+                if(state.mode === 'streak' && state.streak >= 3) {
+                    let speed = 0.0005 + (state.streak * 0.00025);
+                    let range = 80 + (state.streak * 6); 
+                    this.angle += speed * 16.6 * state.timeScale;
+                    this.x = (VW/2) + Math.sin(this.angle) * range;
+                }
             }
-        });
-        Ctx.globalAlpha = 1;
-    }
-};
+        };
+        bucket.init();
 
-const Effects = {
-    spark(x, y) {
-        for(let i=0; i<10; i++) {
-            State.particles.push({ x:x, y:y, vx:(Math.random()-0.5)*10, vy:(Math.random()-0.5)*10, life:1, color:'#FFD700', type:'spark' });
-        }
-    },
-    confetti(x, y) {
-        for(let i=0; i<20; i++) {
-            State.particles.push({ x:x, y:y, vx:(Math.random()-0.5)*15, vy:-5-Math.random()*10, life:1, color: Math.random()>0.5?'#c91a1a':'#fff', type:'confetti' });
-        }
-    }
-};
-
-const Bucket = {
-    x: 0, y: 0,
-    init() {},
-    update() {
-        this.x = State.w / 2 + Math.sin(State.frames * 0.02) * (10 + State.streak * 5);
-        this.y = CFG.bucketY;
-    }
-};
-
-// === GAME CONTROLLER ===
-const Game = {
-    init() {
-        window.addEventListener('resize', this.resize);
-        this.resize();
-        Input.init();
-        
         for(let i=0; i<40; i++) {
-            State.bgSwirls.push({ angle: Math.random()*Math.PI*2, dist: 100 + Math.random()*400, speed: (0.001 + Math.random()*0.002) * (Math.random()>0.5?1:-1), size: Math.random()*3+1 });
-        }
-        this.loop();
-    },
-
-    resize() {
-        State.w = window.innerWidth;
-        State.h = window.innerHeight;
-        Canvas.width = State.w;
-        Canvas.height = State.h;
-        Cap.reset();
-    },
-
-    start() {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        State.streak = 0;
-        State.wonCaps = [];
-        document.getElementById('score-val').innerText = "0";
-        document.getElementById('tutorial').classList.add('show');
-        Cap.reset();
-    },
-
-    shoot(vx, vy) {
-        State.phase = 'FLYING';
-        Cap.vx = vx;
-        Cap.vy = vy;
-        Cap.vRot = (Math.random() - 0.5) * 0.5; // Spin
-    },
-
-    score() {
-        State.phase = 'SCORING';
-        State.streak++;
-        State.bgEnergy = 100;
-        State.screenFlash = 0.3;
-        document.getElementById('score-val').innerText = State.streak;
-        
-        if(navigator.vibrate) navigator.vibrate(50);
-        Effects.confetti(Cap.x, Cap.y);
-
-        setTimeout(() => {
-            State.wonCaps.push({
-                x: (Math.random()-0.5)*100,
-                y: 50 - (State.wonCaps.length * 5),
-                r: Math.random() * Math.PI
+            state.bgParticles.push({
+                xOffset: (Math.random()-0.5) * 500,
+                yOffset: Math.random() * 1200, 
+                swayRange: 30 + Math.random() * 50,
+                swaySpeed: 0.002 + Math.random() * 0.003,
+                riseSpeed: 0.5 + Math.random() * 1.5,
+                size: Math.random() * 4 + 1,
+                alpha: Math.random() * 0.5 + 0.1
             });
-            
-            if(State.streak >= 10) {
-                document.getElementById('screen-win').classList.add('active');
-            } else {
-                Cap.reset();
+        }
+
+        const particles = [];
+
+        function spawnParticles(x, y, type) {
+            let count = type === 'confetti' ? 40 : 20;
+            for(let i=0; i<count; i++) {
+                let color = '#fff';
+                if(type === 'confetti') {
+                    const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700'];
+                    color = cols[Math.floor(Math.random()*cols.length)];
+                } else if (type === 'spark') {
+                    color = '#FFD700';
+                }
+
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5) * (type==='confetti'?25:15),
+                    vy: (Math.random()-0.5) * (type==='confetti'?25:15),
+                    life: 1.0,
+                    type: type,
+                    color: color,
+                    size: Math.random() * 8 + 2,
+                    rot: Math.random() * Math.PI, 
+                    vRot: (Math.random()-0.5) * 0.5 
+                });
             }
-        }, 500);
-    },
+        }
 
-    miss() {
-        State.phase = 'MISS';
-        setTimeout(() => {
-            if(State.mode === 'warmup') Cap.reset();
-            else document.getElementById('screen-fail').classList.add('active');
-        }, 500);
-    },
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.globalAlpha = p.life;
+                if(p.type === 'splash') {
+                    let rad = ctx.createRadialGradient(0,0,0, 0,0,12);
+                    rad.addColorStop(0, 'rgba(165, 242, 243, 0.8)');
+                    rad.addColorStop(1, 'rgba(165, 242, 243, 0)');
+                    ctx.fillStyle = rad;
+                    ctx.beginPath(); ctx.arc(0,0, 12, 0, Math.PI*2); ctx.fill();
+                } else if (p.type === 'confetti') {
+                    ctx.fillStyle = p.color;
+                    ctx.rotate(p.rot);
+                    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                } else if (p.type === 'spark') {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
+                } else {
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+            });
+        }
 
-    retry() {
-        this.start();
-    },
+        function spawnFloatingText(text, x, y) {
+            state.floatTexts.push({ text: text, x: x, y: y, life: 1.0, vy: -2 });
+        }
 
-    loop() {
-        requestAnimationFrame(() => Game.loop());
-        State.frames++;
-        State.bgEnergy *= 0.95;
-        Bucket.update();
-        Cap.update();
-        Render.draw();
-    }
-};
+        function drawFloatingTexts() {
+            ctx.save();
+            ctx.textAlign = 'center';
+            state.floatTexts.forEach(t => {
+                ctx.font = "bold 40px 'Anton', sans-serif";
+                ctx.fillStyle = '#fff';
+                ctx.globalAlpha = t.life;
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+                ctx.strokeText(t.text, t.x, t.y);
+                ctx.fillText(t.text, t.x, t.y);
+            });
+            ctx.restore();
+        }
 
-Game.init();
-</script>
+        function spawnShockwave(x, y, color) {
+            state.shockwaves.push({ x: x, y: y, r: 10, maxR: 800, alpha: 0.8, color: color });
+        }
+
+        function updateEffects() {
+            // Particles
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx * state.timeScale; 
+                p.y += p.vy * state.timeScale;
+                p.life -= 0.03 * state.timeScale;
+                
+                if(p.type === 'splash') {
+                    p.vy += 0.5 * state.timeScale;
+                } else if (p.type === 'confetti') {
+                    p.vy += 0.5 * state.timeScale;
+                    p.rot += p.vRot * state.timeScale; // Apply Spin
+                }
+                
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+            // Shockwaves
+            for(let i=state.shockwaves.length-1; i>=0; i--) {
+                let s = state.shockwaves[i];
+                s.r += 40; s.alpha -= 0.04; 
+                if(s.alpha <= 0) state.shockwaves.splice(i, 1);
+            }
+            // Texts
+            for(let i=state.floatTexts.length-1; i>=0; i--) {
+                let t = state.floatTexts[i];
+                t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
+                if(t.life <= 0) state.floatTexts.splice(i, 1);
+            }
+            if(state.screenFlash > 0) state.screenFlash -= 0.1;
+        }
+
+        function triggerHaptic(type) {
+            if (!navigator.vibrate) return;
+            if (type === 'tension') navigator.vibrate(5); 
+            if (type === 'impact') navigator.vibrate(40); 
+            if (type === 'success') navigator.vibrate([40, 50, 40, 50, 100]); 
+        }
+
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('token');
+            if(token) {
+                state.token = token;
+                document.getElementById('token-status').innerText = "TOKEN AKTIV";
+                document.getElementById('token-status').style.color = "#fff";
+                document.getElementById('btn-start').classList.remove('hidden');
+            } else {
+                state.token = "demo-" + Date.now();
+                document.getElementById('token-status').innerText = "DEMO MODUS";
+                document.getElementById('token-status').style.color = "#aaa";
+                document.getElementById('btn-start').classList.remove('hidden');
+            }
+            bottle.reset();
+            loop();
+        }
+
+        function loop() {
+            globalTime += 0.05;
+            if(state.freezeFrame > 0) {
+                state.freezeFrame--;
+                requestAnimationFrame(loop);
+                return;
+            }
+            state.bgEnergy *= 0.95; 
+
+            drawBackground();
+
+            ctx.save();
+            let offsetX = (cvs.width - (VW * scale)) / 2;
+            ctx.translate(offsetX, 0);
+            ctx.scale(scale, scale);
+            state.shockwaves.forEach(s => {
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+                ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke();
+            });
+            ctx.restore();
+            
+            ctx.save();
+            ctx.translate(offsetX, 0);
+            ctx.scale(scale, scale);
+
+            let shakeX = (Math.random()-0.5) * state.cameraShake;
+            let shakeY = (Math.random()-0.5) * state.cameraShake;
+            state.cameraShake *= 0.85; 
+            ctx.translate(shakeX, state.cameraY + shakeY);
+
+            bucket.update();
+            let bScale = bucket.scale * bucket.scaleAnim; 
+
+            ctx.save();
+            ctx.translate(bucket.x, bucket.y);
+            ctx.scale(bScale, bScale); 
+            drawBucketBack();
+            drawStoredBottles(); 
+            ctx.restore();
+
+            // DRAW STATIONARY BOTTLE BODY (Big and close)
+            ctx.save();
+            ctx.translate(VW/2, BOTTLE_BASE_Y); 
+            ctx.scale(SCALE_NEAR, SCALE_NEAR);
+            drawStationaryBottle();
+            ctx.restore();
+
+            // HANDLE FLYING CAP
+            if(state.phase === 'flying') {
+                let distTotal = (VH - 150) - bucket.y;
+                let currentDist = bottle.y - bucket.y;
+                let progress = Math.max(0, Math.min(1, currentDist / distTotal));
+                
+                // Smoother scaling: Start 3.5 -> End 1.1
+                bottle.z = bucket.scale + (progress * (SCALE_NEAR - bucket.scale));
+            } else if (state.phase === 'idle') {
+                bottle.reset(); // Force perfect alignment in idle
+            }
+
+            // Draw Cap (Unless it's in bucket)
+            if(state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
+                ctx.save();
+                ctx.translate(bottle.x, bottle.y);
+                ctx.scale(bottle.z, bottle.z);
+                ctx.rotate(bottle.rot);
+                
+                let speed = Math.sqrt(bottle.vx*bottle.vx + bottle.vy*bottle.vy);
+                // Motion trail
+                if(state.phase === 'flying' && speed > 10) {
+                    let offset = speed * 0.4;
+                    ctx.save(); ctx.translate(0, offset); ctx.globalAlpha = 0.4; drawCapGraphic(); ctx.restore();
+                }
+                drawCapGraphic();
+                ctx.restore();
+            }
+
+            ctx.save();
+            ctx.translate(bucket.x, bucket.y);
+            ctx.scale(bScale, bScale); 
+            drawBucketFront(); 
+            ctx.restore();
+
+            updatePhysics();
+            updateEffects();
+            drawParticles(); 
+            drawFloatingTexts();
+
+            ctx.restore();
+
+            if(state.screenFlash > 0.05) {
+                ctx.fillStyle = `rgba(255,255,255,${state.screenFlash})`;
+                ctx.fillRect(0,0,cvs.width, cvs.height);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // === FIXED BACKGROUND (CENTERED + INFINITE LOOP) ===
+        function drawBackground() {
+            let cx = cvs.width / 2;
+            let cy = cvs.height / 2;
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0,0,cvs.width, cvs.height);
+
+            let energy = state.bgEnergy / 100; 
+            
+            let baseR = 20, baseG = 20, baseB = 20; 
+            let glowR = 20, glowG = 20, glowB = 40;
+
+            if(state.streak < 4) {
+                baseR = 20; baseG = 20; baseB = 20;
+                glowR = 20; glowG = 20; glowB = 40;
+            } else if (state.streak < 8) {
+                baseR = 40; baseG = 10; baseB = 10;
+                glowR = 80; glowG = 10; glowB = 10;
+            } else {
+                baseR = 50; baseG = 40; baseB = 10;
+                glowR = 100; glowG = 80; glowB = 10;
+            }
+
+            let r = baseR + (energy * 100); 
+            let g = baseG + (energy * 50); 
+            let b = baseB + (energy * 50);
+
+            let time = globalTime * 0.5;
+            let grad = ctx.createRadialGradient(cx + Math.sin(time)*50, cy + Math.cos(time)*50, 10, cx, cy, Math.max(cvs.width, cvs.height));
+            
+            grad.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
+            grad.addColorStop(0.6, `rgba(${glowR}, ${glowG}, ${glowB}, 0.5)`);
+            grad.addColorStop(1, '#000');
+            
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,cvs.width, cvs.height);
+
+            ctx.save();
+            ctx.fillStyle = `rgba(255,255,255,${0.1 + energy*0.2})`;
+            state.bgParticles.forEach(p => {
+                let sway = Math.sin(globalTime * p.swaySpeed) * p.swayRange;
+                let x = cx + p.xOffset + sway; 
+                let totalRise = globalTime * p.riseSpeed * 20;
+                let y = (cvs.height + p.yOffset - totalRise) % (cvs.height + 200);
+                if(y < -50) y += cvs.height + 200;
+
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(x, y, p.size, 0, Math.PI*2);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
+
+        function updatePhysics() {
+            if(state.phase !== 'flying') return;
+
+            let distToBucket = Math.sqrt(Math.pow(bottle.x - bucket.x, 2) + Math.pow(bottle.y - bucket.y, 2));
+            
+            if(distToBucket < 220 && Math.abs(bottle.y - bucket.y) < 180 && bottle.vy > 0) {
+                state.timeScale += (0.35 - state.timeScale) * 0.15; 
+                if(Math.random() > 0.8) triggerHaptic('tension');
+            } else {
+                state.timeScale += (1.0 - state.timeScale) * 0.1; 
+            }
+
+            bottle.vy += GRAVITY * state.timeScale; 
+            bottle.x += bottle.vx * state.timeScale;
+            bottle.y += bottle.vy * state.timeScale;
+            bottle.rot += bottle.vRot * state.timeScale;
+
+            // FIX: Check side bounds so it resets if you flick wide
+            if(bottle.y > VH + 200 || bottle.x < -100 || bottle.x > VW + 100) {
+                handleMiss();
+            }
+
+            let targetY = bucket.y - (bucket.h * bucket.scale)/2;
+            let rimW = bucket.w * bucket.scale;
+
+            if(Math.abs(bottle.y - targetY) < 30 && bottle.vy > 0) {
+                // FIX: Much wider hit detection (+30) to make it easier
+                if(Math.abs(bottle.x - bucket.x) < rimW/2 + 15) {
+                    handleScore();
+                } else if (Math.abs(bottle.x - bucket.x) < rimW/2 + 35) {
+                    bottle.vx *= -0.6;
+                    bottle.vRot += (Math.random()-0.5) * 5; 
+                    state.cameraShake = 30; 
+                    state.freezeFrame = 4;
+                    spawnParticles(bottle.x, bottle.y, 'spark'); 
+                    triggerHaptic('impact');
+                }
+            }
+        }
+
+        function handleScore() {
+            state.phase = 'in_bucket';
+            bottle.vx = 0; bottle.vy = 0; 
+            
+            state.bgEnergy = 150; 
+            state.cameraShake = 40; 
+            state.screenFlash = 0.4; 
+            state.freezeFrame = 8; 
+            bucket.scaleAnim = 1.2; 
+            triggerHaptic('success');
+            
+            spawnParticles(bucket.x, bucket.y - 50, 'splash'); 
+            spawnParticles(bucket.x, bucket.y - 100, 'confetti'); 
+            
+            let waveColor = '#fff';
+            if(state.streak > 6) waveColor = '#c91a1a'; 
+            else if(state.streak > 3) waveColor = '#a5f2f3'; 
+            spawnShockwave(bucket.x, bucket.y, waveColor);
+
+            if(state.mode === 'streak') {
+                state.streak++;
+                let scoreEl = document.getElementById('score-val');
+                scoreEl.innerText = state.streak;
+                scoreEl.classList.remove('pulse-text');
+                void scoreEl.offsetWidth; 
+                scoreEl.classList.add('pulse-text');
+                
+                let msgs = ["SAUBER!", "GLATT!", "REIN!", "PERFEKT!"];
+                let msg = msgs[Math.floor(Math.random()*msgs.length)];
+                if(state.streak % 5 === 0) msg = "LEGENDÄR!";
+                spawnFloatingText(msg, bucket.x, bucket.y - 150);
+            } else {
+                spawnFloatingText("TREFFER!", bucket.x, bucket.y - 150);
+            }
+
+            setTimeout(() => {
+                let baseHeight = -10; 
+                let stackHeight = state.wonBottles.length * 15; 
+                state.wonBottles.push({
+                    relX: (Math.random() - 0.5) * 80, 
+                    relY: baseHeight - stackHeight + (Math.random() * 10), 
+                    rot: (Math.random() - 0.5) * 2.0 
+                });
+                if(state.mode === 'warmup') {
+                    showInstantWinCheck();
+                } else if (state.mode === 'streak') {
+                    if(state.streak >= 10) showScreen('s-raffle');
+                    else {
+                        bottle.reset();
+                    }
+                }
+            }, 600);
+        }
+
+        function handleMiss() {
+            state.phase = 'miss';
+            setTimeout(() => {
+                if(state.mode === 'warmup') bottle.reset();
+                else showScreen('s-fail');
+            }, 500);
+        }
+
+        function drawBucketBack() {
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.ellipse(0, bucket.h/2, bucket.w/2 - 10, 15, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            let grad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
+            grad.addColorStop(0, '#0a0a0a');
+            grad.addColorStop(0.5, '#222');
+            grad.addColorStop(1, '#0a0a0a');
+            ctx.fillStyle = grad;
+            
+            ctx.beginPath();
+            ctx.moveTo(-bucket.w/2, -bucket.h/2); 
+            ctx.lineTo(bucket.w/2, -bucket.h/2);
+            ctx.lineTo(bucket.w/2 - 15, bucket.h/2); 
+            ctx.lineTo(-bucket.w/2 + 15, bucket.h/2);
+            ctx.fill();
+
+            bucket.ice.forEach(i => {
+                ctx.save();
+                ctx.translate(i.x, i.y);
+                ctx.rotate(i.rot);
+                ctx.fillStyle = 'rgba(165, 242, 243, 0.3)'; 
+                ctx.fillRect(-i.size/2, -i.size/2, i.size, i.size);
+                if(i.glint) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.beginPath(); ctx.moveTo(-i.size/2, -i.size/2); ctx.lineTo(0, -i.size/2); ctx.lineTo(-i.size/2, 0); ctx.fill();
+                }
+                ctx.restore();
+            });
+        }
+
+        function drawStoredBottles() {
+            state.wonBottles.forEach(b => {
+                ctx.save();
+                ctx.translate(b.relX, b.relY); 
+                ctx.rotate(b.rot);
+                ctx.scale(2.0, 2.0); 
+                drawCapGraphic(); // Draw Caps inside bucket
+                ctx.restore();
+            });
+        }
+
+        function drawBucketFront() {
+            bucket.ice.forEach((i, idx) => {
+                if(idx % 2 === 0) return; 
+                ctx.save();
+                ctx.translate(i.x, i.y);
+                ctx.rotate(i.rot);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.fillRect(-i.size/2, -i.size/2, i.size, i.size);
+                ctx.strokeRect(-i.size/2, -i.size/2, i.size, i.size);
+                ctx.restore();
+            });
+
+            let grad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
+            grad.addColorStop(0, '#050505'); 
+            grad.addColorStop(0.2, '#2a2a2a'); 
+            grad.addColorStop(0.5, '#1a1a1a'); 
+            grad.addColorStop(0.8, '#2a2a2a'); 
+            grad.addColorStop(1, '#050505'); 
+            ctx.fillStyle = grad;
+            
+            ctx.beginPath();
+            ctx.moveTo(-bucket.w/2, -bucket.h/2); 
+            ctx.lineTo(bucket.w/2, -bucket.h/2);
+            ctx.lineTo(bucket.w/2 - 15, bucket.h/2); 
+            ctx.lineTo(-bucket.w/2 + 15, bucket.h/2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            bucket.droplets.forEach(d => {
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            let rimGrad = ctx.createLinearGradient(-bucket.w/2, 0, bucket.w/2, 0);
+            rimGrad.addColorStop(0, '#555'); rimGrad.addColorStop(0.5, '#eee'); rimGrad.addColorStop(1, '#555');
+            ctx.fillStyle = rimGrad;
+            ctx.beginPath();
+            ctx.ellipse(0, -bucket.h/2, bucket.w/2, 6, 0, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 5;
+            ctx.translate(0, 10); ctx.rotate(-0.05); 
+            ctx.fillStyle = '#fff'; ctx.font = "bold 28px sans-serif"; 
+            ctx.textAlign = 'center'; ctx.textBaseline='middle';
+            ctx.fillText("EISKALT", 0, -15);
+            ctx.fillStyle = '#c91a1a'; ctx.font = "bold 16px sans-serif"; 
+            ctx.fillText("fritz-kola", 0, 15);
+            ctx.restore();
+        }
+
+        function drawStationaryBottle() {
+            let bodyGrad = ctx.createLinearGradient(-13, 0, 13, 0);
+            bodyGrad.addColorStop(0, 'rgba(10, 5, 5, 0.95)');
+            bodyGrad.addColorStop(0.3, 'rgba(60, 30, 30, 0.95)'); 
+            bodyGrad.addColorStop(0.6, 'rgba(20, 5, 5, 0.95)');
+            bodyGrad.addColorStop(1, 'rgba(10, 5, 5, 0.95)');
+            
+            ctx.fillStyle = bodyGrad;
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+            
+            ctx.beginPath();
+            ctx.roundRect(-13, -35, 26, 70, 5); 
+            ctx.rect(-8, BOTTLE_NECK_REL_Y, 16, 25); 
+            ctx.fill(); 
+            ctx.stroke();
+            
+            let labelGrad = ctx.createLinearGradient(-14, 0, 14, 0);
+            labelGrad.addColorStop(0, '#800'); 
+            labelGrad.addColorStop(0.5, '#c91a1a'); 
+            labelGrad.addColorStop(1, '#800'); 
+            
+            ctx.fillStyle = labelGrad;
+            ctx.fillRect(-14, -20, 28, 25);
+            
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign='center';
+            ctx.fillText('fritz', 0, -12); ctx.fillText('kola', 0, -3);
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.15)'; 
+            ctx.fillRect(4, -30, 3, 60); 
+            ctx.fillStyle = 'rgba(255,255,255,0.08)'; 
+            ctx.fillRect(-6, -30, 2, 60); 
+
+            // Neck top (Dark hole)
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(0, BOTTLE_NECK_REL_Y, 8, 3, 0, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        function drawCapGraphic() {
+            // Cap Side
+            let capGrad = ctx.createLinearGradient(-9, 0, 9, 0);
+            capGrad.addColorStop(0, '#999');
+            capGrad.addColorStop(0.3, '#fff');
+            capGrad.addColorStop(0.6, '#ccc');
+            capGrad.addColorStop(1, '#999');
+            ctx.fillStyle = capGrad;
+            
+            // Draw Cylinder-ish shape
+            ctx.beginPath();
+            ctx.moveTo(-9, -4);
+            ctx.lineTo(9, -4);
+            ctx.lineTo(9, 4);
+            ctx.lineTo(-9, 4);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Cap Top (Ellipse)
+            ctx.beginPath();
+            ctx.ellipse(0, -4, 9, 3, 0, 0, Math.PI*2);
+            ctx.fillStyle = '#eee';
+            ctx.fill();
+            
+            // Ridges
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1;
+            for(let i=-7; i<8; i+=2) {
+                ctx.beginPath(); ctx.moveTo(i, -3); ctx.lineTo(i, 4); ctx.stroke();
+            }
+        }
+
+        const input = { active: false, startX: 0, startY: 0, currX: 0, currY: 0 };
+        let lastHaptic = 0;
+
+        function handleInputStart(x, y) {
+            if(state.phase !== 'idle') return;
+            let offsetX = (cvs.width - (VW * scale)) / 2;
+            let virtX = (x - offsetX) / scale;
+            let virtY = y / scale;
+
+            if(virtY > VH / 2) {
+                input.active = true;
+                input.startX = virtX;
+                input.startY = virtY;
+                input.currX = virtX;
+                input.currY = virtY;
+                state.phase = 'aiming'; 
+                document.getElementById('tutorial-overlay').classList.remove('show');
+            }
+        }
+
+        function handleInputMove(x, y) {
+            if(!input.active) return;
+            let offsetX = (cvs.width - (VW * scale)) / 2;
+            input.currX = (x - offsetX) / scale;
+            input.currY = y / scale;
+        }
+
+        function handleInputEnd() {
+            if(!input.active) return;
+            input.active = false;
+            
+            let dx = input.currX - input.startX;
+            let dy = input.currY - input.startY;
+            
+            // Swipe UP logic
+            if(dy < -30) { 
+                state.phase = 'flying';
+                bottle.vx = dx * POWER_X; 
+                bottle.vy = dy * POWER_Y; 
+                bottle.vRot = (Math.random() - 0.5) * 0.8; 
+            } else {
+                state.phase = 'idle'; 
+            }
+        }
+
+        window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleInputEnd);
+        
+        window.addEventListener('touchstart', e => { 
+            if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+            e.preventDefault(); 
+            handleInputStart(e.touches[0].clientX, e.touches[0].clientY); 
+        }, {passive:false});
+
+        window.addEventListener('touchmove', e => { 
+            if(input.active) e.preventDefault(); 
+            handleInputMove(e.touches[0].clientX, e.touches[0].clientY); 
+        }, {passive:false});
+
+        window.addEventListener('touchend', handleInputEnd);
+
+        const header = document.getElementById('main-header');
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if(id) {
+                document.getElementById(id).classList.add('active');
+                header.classList.add('hidden-ui'); 
+            } else {
+                header.classList.remove('hidden-ui'); 
+            }
+        }
+
+        function startGame() { showScreen(''); document.getElementById('tutorial-overlay').classList.add('show'); }
+        function showInstantWinCheck() { 
+            showScreen('s-instant'); 
+            const isWinner = Math.random() < 0.3; 
+            setTimeout(() => {
+                document.getElementById('iw-msg').classList.add('hidden');
+                if(isWinner) document.getElementById('iw-win-container').classList.remove('hidden');
+                else {
+                    document.getElementById('iw-loss-container').classList.remove('hidden');
+                    document.getElementById('iw-continue-container').classList.remove('hidden');
+                }
+            }, 1000);
+        }
+        function claimInstant() {
+            const email = document.getElementById('email-instant').value;
+            if(!email.includes('@')) { alert("Bitte E-Mail eingeben"); return; }
+            document.getElementById('iw-win-container').innerHTML = "<h3>Gespeichert!</h3>";
+            document.getElementById('iw-continue-container').classList.remove('hidden');
+        }
+        function startStreakMode() {
+            state.mode = 'streak'; 
+            state.streak = 1;
+            document.getElementById('score-val').innerText = "1";
+            state.wonBottles = []; 
+            state.wonBottles.push({
+                relX: (Math.random() - 0.5) * 40,
+                relY: -10, 
+                rot: (Math.random() - 0.5) * 0.5
+            });
+            showScreen('');
+            bottle.reset(); 
+            bucket.resetPos();
+        }
+        function submitRaffle() { alert("Viel Glück!"); location.reload(); }
+        function resize() {
+            scale = Math.min(window.innerWidth / VW, window.innerHeight / VH);
+            cvs.width = window.innerWidth;
+            cvs.height = window.innerHeight;
+        }
+        init();
+    </script>
 </body>
 </html>
