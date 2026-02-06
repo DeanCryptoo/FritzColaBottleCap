@@ -28,7 +28,6 @@
             touch-action: none; 
         }
 
-        /* Container für Desktop-Modus (Handy-Format) */
         #game-container {
             position: relative; 
             width: 100%; 
@@ -43,7 +42,6 @@
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
 
-        /* LOADING SCREEN */
         #loading-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; color: #fff; z-index: 100;
@@ -52,7 +50,6 @@
             transition: opacity 0.5s;
         }
 
-        /* HEADER */
         header {
             position: absolute; top: 0; left: 0; width: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -73,7 +70,6 @@
         .pulse-text { animation: pulse 0.3s ease-in-out; color: var(--red) !important; text-shadow: 0 0 30px var(--red); }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
 
-        /* SCREENS */
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); 
@@ -121,7 +117,6 @@
             80% { transform: translateY(-40px) rotate(-10deg); opacity: 0; } 
             100% { opacity: 0; } 
         }
-
     </style>
 </head>
 <body>
@@ -153,19 +148,16 @@
             <div id="s-instant" class="screen">
                 <h1 id="iw-title">SAUBER!</h1>
                 <p id="iw-msg">Prüfe Sofortgewinn...</p>
-                
                 <div id="iw-win-container" class="hidden" style="width: 100%; max-width: 320px;">
                     <h2 style="color: #FFD700;">SHIRT GEWONNEN!</h2>
                     <p>Gib deine E-Mail ein um den Gewinn zu sichern.</p>
                     <input type="email" id="email-instant" placeholder="DEINE E-MAIL ADRESSE">
                     <button class="btn" ontouchstart="claimInstant()" onclick="claimInstant()">GEWINN SICHERN</button>
                 </div>
-
                 <div id="iw-loss-container" class="hidden" style="width: 100%; max-width: 320px;">
                     <h2>KEIN SOFORTGEWINN</h2>
                     <p>Aber du kannst noch groß abräumen.</p>
                 </div>
-
                 <div id="iw-continue-container" class="hidden" style="width: 100%; max-width: 320px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
                     <h3 style="margin:0 0 10px 0; font-family:var(--font-head); color:var(--white);">DAS GEWINNSPIEL</h3>
                     <p style="margin: 0 0 15px 0; color:#888;">Triff noch 9 Mal in Folge für die große Verlosung.</p>
@@ -198,49 +190,72 @@
         const VW = 600;
         let scale = 1; 
         let globalTime = 0; 
+        let isPC = false; // Detection flag
 
-        // --- ASSET LOADER ---
+        // --- ASSET LOADER (UPDATED FOR DUAL BG) ---
         const images = {};
         const imageSources = {
             bottle: 'Bottle.png',     
             cap: 'BottleCap.png',     
             bucket: 'icebucket.png',  
-            bg: 'background.png'
+            bgDesktop: 'backgroundDesktop.jpeg', // NEW
+            bgPhone: 'backgroundPhone.jpeg'      // NEW
         };
 
         // ==========================================
         // === GAME CONFIGURATION ===
         // ==========================================
-        // bottleWidth: Nur die Breite angeben! Höhe wird automatisch berechnet (Ratio 4796x8000)
         const GAME_CONFIG = {
             pc: {
-                bottleWidth: 120,     // Breite in Pixel (120 ist ein guter Startwert)
-                bottleBottom: 180,    // Abstand vom unteren Rand
+                bottleWidth: 120,     
+                bottleBottom: 220,    
                 capSize: 32           
             },
             mobile: {
-                bottleWidth: 110,     // Etwas schmaler am Handy
+                bottleWidth: 110,     
                 bottleBottom: 100,     
                 capSize: 30           
             },
             visuals: {
-                bgOverlayOpacity: 0.7 // Deckkraft des schwarzen Overlays (0.0 bis 1.0)
+                bgOverlayOpacity: 0.5 
             }
         };
-        // ==========================================
+
+        // --- SECURITY & FUTURE PROOFING ---
+        // Keeps track of input data to send to backend for verification
+        const SECURITY = {
+            startTime: 0,
+            startPos: {x:0, y:0},
+            shots: [],
+            
+            recordShot: function(vecX, vecY) {
+                this.shots.push({
+                    ts: Date.now(),
+                    dx: vecX,
+                    dy: vecY,
+                    valid: true // Backend would verify physics bounds here
+                });
+            },
+            
+            getPayload: function() {
+                // This is what you would send to your API endpoint
+                return JSON.stringify({
+                    token: state.token,
+                    sessionData: this.shots,
+                    finalStreak: state.streak
+                });
+            }
+        };
 
         // --- PHYSICS CONFIG ---
         const GRAVITY = 0.85;  
         const POWER_X = 0.14;  
         const POWER_Y = 0.16;  
-        
-        // --- VISUAL CONFIG ---
         const SCALE_NEAR = 3.5; 
         const SCALE_FAR = 1.1; 
         
         let CAP_START_Y = VH - 200; 
 
-        // Dimensions placeholder - will be calculated in resize()
         let IMG_SIZES = {
             bottle: { w: 100, h: 100 }, 
             cap: { w: 30, h: 30 },      
@@ -261,7 +276,9 @@
             wonBottles: [],
             shockwaves: [],
             floatTexts: [],
-            bgParticles: []
+            bgParticles: [],
+            // Game Feel Variables
+            bottleRecoil: 0 
         };
 
         const bottle = {
@@ -275,25 +292,16 @@
                 state.phase = 'idle';
                 state.cameraY = 0;
                 state.timeScale = 1.0; 
+                state.bottleRecoil = 0;
             }
         };
 
         const bucketObj = {
-            x: VW / 2, 
-            y: 550,       
-            w: IMG_SIZES.bucket.w, h: IMG_SIZES.bucket.h, 
-            scale: SCALE_FAR,
-            scaleAnim: 1.0, 
-            angle: 0, 
+            x: VW / 2, y: 550, w: IMG_SIZES.bucket.w, h: IMG_SIZES.bucket.h, scale: SCALE_FAR, scaleAnim: 1.0, angle: 0, 
             init: function() { },
-            resetPos: function() {
-                this.x = VW/2;
-                this.y = 550;
-                this.angle = 0;
-            },
+            resetPos: function() { this.x = VW/2; this.y = 550; this.angle = 0; },
             update: function() {
                 this.scaleAnim += (1.0 - this.scaleAnim) * 0.1;
-                
                 if(state.mode === 'streak' && state.streak >= 3) {
                     let speed = 0.0005 + (state.streak * 0.00025);
                     let range = 80 + (state.streak * 6); 
@@ -308,27 +316,34 @@
 
         function spawnParticles(x, y, type, customColor) {
             let count = type === 'confetti' ? 40 : 20;
+            if(type === 'gas') count = 15; // New Gas Type
+
             for(let i=0; i<count; i++) {
                 let color = '#fff';
+                let size = Math.random() * 8 + 2;
+                let life = 1.0;
+                
                 if(type === 'confetti') {
-                    if(customColor) {
-                        color = customColor; 
-                    } else {
+                    if(customColor) color = customColor; 
+                    else {
                         const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700'];
                         color = cols[Math.floor(Math.random()*cols.length)];
                     }
                 } else if (type === 'spark') {
                     color = '#FFD700';
+                } else if (type === 'gas') {
+                    color = 'rgba(200, 200, 200, 0.4)'; // Smokey
+                    size = Math.random() * 15 + 5;
                 }
 
                 particles.push({
                     x: x, y: y,
                     vx: (Math.random()-0.5) * (type==='confetti'?25:15),
-                    vy: (Math.random()-0.5) * (type==='confetti'?25:15),
-                    life: 1.0,
+                    vy: (Math.random()-0.5) * (type==='confetti'?25:15) + (type==='gas'?-5:0), // Gas goes up
+                    life: life,
                     type: type,
                     color: color,
-                    size: Math.random() * 8 + 2,
+                    size: size,
                     rot: Math.random() * Math.PI, 
                     vRot: (Math.random()-0.5) * 0.5 
                 });
@@ -340,6 +355,7 @@
                 ctx.save();
                 ctx.translate(p.x, p.y);
                 ctx.globalAlpha = p.life;
+                
                 if(p.type === 'splash') {
                     let rad = ctx.createRadialGradient(0,0,0, 0,0,12);
                     rad.addColorStop(0, 'rgba(165, 242, 243, 0.8)');
@@ -353,6 +369,10 @@
                 } else if (p.type === 'spark') {
                     ctx.fillStyle = '#FFD700';
                     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
+                } else if (p.type === 'gas') {
+                    // Gas / Smoke effect
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.arc(0,0, p.size, 0, Math.PI*2); ctx.fill();
                 } else {
                     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
                 }
@@ -394,7 +414,10 @@
                     p.vy += 0.5 * state.timeScale;
                 } else if (p.type === 'confetti') {
                     p.vy += 0.5 * state.timeScale;
-                    p.rot += p.vRot * state.timeScale; // Apply Spin
+                    p.rot += p.vRot * state.timeScale; 
+                } else if (p.type === 'gas') {
+                    p.size *= 1.05; // Gas grows
+                    p.life -= 0.02; // Fades faster
                 }
                 
                 if(p.life <= 0) particles.splice(i, 1);
@@ -411,7 +434,11 @@
                 t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
                 if(t.life <= 0) state.floatTexts.splice(i, 1);
             }
+            
             if(state.screenFlash > 0) state.screenFlash -= 0.1;
+
+            // Recoil recovery
+            state.bottleRecoil *= 0.8;
         }
 
         function triggerHaptic(type) {
@@ -426,12 +453,7 @@
             let loaded = 0;
             const keys = Object.keys(imageSources);
             const total = keys.length;
-
-            if(total === 0) {
-                init();
-                return;
-            }
-
+            if(total === 0) { init(); return; }
             keys.forEach(key => {
                 const img = new Image();
                 img.src = imageSources[key];
@@ -458,6 +480,7 @@
             resize();
             window.addEventListener('resize', resize);
             
+            // Simulating API Check
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             if(token) {
@@ -490,6 +513,8 @@
             let offsetX = (cvs.width - (VW * scale)) / 2;
             ctx.translate(offsetX, 0);
             ctx.scale(scale, scale);
+            
+            // Draw Shockwaves behind everything
             state.shockwaves.forEach(s => {
                 ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
                 ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke();
@@ -515,10 +540,9 @@
             drawStoredBottles(); 
             ctx.restore();
 
-            // DRAW STATIONARY BOTTLE BODY (Big and close)
+            // DRAW STATIONARY BOTTLE BODY (With Recoil)
             ctx.save();
-            // Translate to center X, and the determined Cap Start Y position
-            ctx.translate(VW/2, CAP_START_Y); 
+            ctx.translate(VW/2, CAP_START_Y + state.bottleRecoil); // Added Recoil Y
             ctx.scale(SCALE_NEAR, SCALE_NEAR);
             drawStationaryBottle();
             ctx.restore();
@@ -528,14 +552,12 @@
                 let distTotal = (VH - 150) - bucketObj.y;
                 let currentDist = bottle.y - bucketObj.y;
                 let progress = Math.max(0, Math.min(1, currentDist / distTotal));
-                
-                // Smoother scaling: Start 3.5 -> End 1.1
                 bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
             } else if (state.phase === 'idle') {
-                bottle.reset(); // Force perfect alignment in idle
+                bottle.reset(); 
             }
 
-            // Draw Cap (Unless it's in bucket)
+            // Draw Cap 
             if(state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
                 ctx.save();
                 ctx.translate(bottle.x, bottle.y);
@@ -543,7 +565,6 @@
                 ctx.rotate(bottle.rot);
                 
                 let speed = Math.sqrt(bottle.vx*bottle.vx + bottle.vy*bottle.vy);
-                // Motion trail
                 if(state.phase === 'flying' && speed > 10) {
                     let offset = speed * 0.4;
                     ctx.save(); ctx.translate(0, offset); ctx.globalAlpha = 0.4; drawCapGraphic(); ctx.restore();
@@ -567,29 +588,26 @@
             requestAnimationFrame(loop);
         }
 
-        // === IMAGE BASED BACKGROUND WITH BLACK OVERLAY ===
+        // === DUAL BACKGROUND SYSTEM ===
         function drawBackground() {
-            if(!images.bg) {
-                // Fallback if image fails
+            let bgImg = isPC ? images.bgDesktop : images.bgPhone;
+            
+            if(!bgImg) {
                 ctx.fillStyle = '#050505';
                 ctx.fillRect(0,0,cvs.width, cvs.height);
             } else {
-                // Cover Logic
-                let bgRatio = images.bg.width / images.bg.height;
+                let bgRatio = bgImg.width / bgImg.height;
                 let cvsRatio = cvs.width / cvs.height;
                 
                 if (cvsRatio > bgRatio) {
-                    // Canvas is wider than image
                     let newH = cvs.width / bgRatio;
-                    ctx.drawImage(images.bg, 0, (cvs.height - newH)/2, cvs.width, newH);
+                    ctx.drawImage(bgImg, 0, (cvs.height - newH)/2, cvs.width, newH);
                 } else {
-                    // Canvas is taller than image
                     let newW = cvs.height * bgRatio;
-                    ctx.drawImage(images.bg, (cvs.width - newW)/2, 0, newW, cvs.height);
+                    ctx.drawImage(bgImg, (cvs.width - newW)/2, 0, newW, cvs.height);
                 }
             }
 
-            // Add Black Overlay for blur/darkening effect (CONFIGURABLE)
             ctx.fillStyle = `rgba(0, 0, 0, ${GAME_CONFIG.visuals.bgOverlayOpacity})`; 
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
@@ -619,7 +637,6 @@
             let rimW = bucketObj.w * bucketObj.scale;
 
             if(Math.abs(bottle.y - targetY) < 50 && bottle.vy > 0) {
-                // FIX: Much wider hit detection (+30) to make it easier
                 if(Math.abs(bottle.x - bucketObj.x) < rimW/2 + 15) {
                     handleScore();
                 } else if (Math.abs(bottle.x - bucketObj.x) < rimW/2 + 35) {
@@ -646,9 +663,8 @@
             
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
             
-            // COLOR CHANGE LOGIC FOR STREAK
             let waveColor = '#fff';
-            if(state.streak >= 4) waveColor = '#a5f2f3'; // Blue/Cyan
+            if(state.streak >= 4) waveColor = '#a5f2f3'; // Blue
             if(state.streak >= 8) waveColor = '#c91a1a'; // Red
             
             spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); 
@@ -669,6 +685,9 @@
             } else {
                 spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150);
             }
+
+            // MOCK: Send Payload to server
+            console.log("SENDING SECURE SCORE:", SECURITY.getPayload());
 
             setTimeout(() => {
                 let baseHeight = -10; 
@@ -697,12 +716,10 @@
             }, 500);
         }
 
-        // === BUCKET IMAGE ===
         function drawBucketImage() {
             if(images.bucket) {
                 let w = IMG_SIZES.bucket.w;
                 let h = IMG_SIZES.bucket.h;
-                // Draw centered at current translate point
                 ctx.drawImage(images.bucket, -w/2, -h/2, w, h);
             }
         }
@@ -718,38 +735,29 @@
             });
         }
 
-        // === BOTTLE IMAGE (STATIONARY) ===
         function drawStationaryBottle() {
             if(images.bottle) {
                 let w = IMG_SIZES.bottle.w;
                 let h = IMG_SIZES.bottle.h;
-                // We are translated to (VW/2, CAP_START_Y).
-                // Bottle centered horizontally (-w/2).
-                // Vertically, slightly offset (-10) so the cap sits nicely on top
                 ctx.drawImage(images.bottle, -w/2, -10, w, h); 
             }
         }
 
-        // === CAP IMAGE (FLYING) ===
         function drawCapGraphic() {
             if(images.cap) {
                 let w = IMG_SIZES.cap.w;
                 let h = IMG_SIZES.cap.h;
-                // Draw centered at current translate point
                 ctx.drawImage(images.cap, -w/2, -h/2, w, h);
             }
         }
 
         const input = { active: false, startX: 0, startY: 0, currX: 0, currY: 0 };
-        let lastHaptic = 0;
 
         function handleInputStart(x, y) {
             if(state.phase !== 'idle') return;
-            // FIX: Adjust input coordinates based on the container, not window
             const container = document.getElementById('game-container');
             const rect = container.getBoundingClientRect();
             
-            // Adjust X/Y to be relative to the canvas inside the container
             let relativeX = x - rect.left;
             let relativeY = y - rect.top;
 
@@ -765,6 +773,10 @@
                 input.currY = virtY;
                 state.phase = 'aiming'; 
                 document.getElementById('tutorial-overlay').classList.remove('show');
+                
+                // SECURITY: Log Start
+                SECURITY.startTime = Date.now();
+                SECURITY.startPos = {x: virtX, y: virtY};
             }
         }
 
@@ -772,10 +784,8 @@
             if(!input.active) return;
             const container = document.getElementById('game-container');
             const rect = container.getBoundingClientRect();
-
             let relativeX = x - rect.left;
             let relativeY = y - rect.top;
-
             let offsetX = (cvs.width - (VW * scale)) / 2;
             input.currX = (relativeX - offsetX) / scale;
             input.currY = relativeY / scale;
@@ -794,28 +804,31 @@
                 bottle.vx = dx * POWER_X; 
                 bottle.vy = dy * POWER_Y; 
                 bottle.vRot = (Math.random() - 0.5) * 0.8; 
+                
+                // GAME FEEL: FRITZ ZISCH
+                // Spawn gas particles at the bottle neck (center of screen, CAP_START_Y)
+                spawnParticles(VW/2, CAP_START_Y, 'gas');
+                
+                // GAME FEEL: BOTTLE RECOIL
+                state.bottleRecoil = 25; // Push bottle down
+
+                // SECURITY: Log Shot
+                SECURITY.recordShot(bottle.vx, bottle.vy);
             } else {
                 state.phase = 'idle'; 
             }
         }
 
-        // Event Listeners (Mouse)
         window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
         window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
         window.addEventListener('mouseup', handleInputEnd);
-        
-        // Event Listeners (Touch)
         window.addEventListener('touchstart', e => { 
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-            e.preventDefault(); 
-            handleInputStart(e.touches[0].clientX, e.touches[0].clientY); 
+            e.preventDefault(); handleInputStart(e.touches[0].clientX, e.touches[0].clientY); 
         }, {passive:false});
-
         window.addEventListener('touchmove', e => { 
-            if(input.active) e.preventDefault(); 
-            handleInputMove(e.touches[0].clientX, e.touches[0].clientY); 
+            if(input.active) e.preventDefault(); handleInputMove(e.touches[0].clientX, e.touches[0].clientY); 
         }, {passive:false});
-
         window.addEventListener('touchend', handleInputEnd);
 
         const header = document.getElementById('main-header');
@@ -854,45 +867,46 @@
             state.streak = 1;
             document.getElementById('score-val').innerText = "1";
             state.wonBottles = []; 
-            state.wonBottles.push({
-                relX: (Math.random() - 0.5) * 40,
-                relY: -10, 
-                rot: (Math.random() - 0.5) * 0.5
-            });
+            state.wonBottles.push({ relX: (Math.random() - 0.5) * 40, relY: -10, rot: (Math.random() - 0.5) * 0.5 });
             showScreen('');
             bottle.reset(); 
             bucketObj.resetPos();
         }
-        function submitRaffle() { alert("Viel Glück!"); location.reload(); }
+        function submitRaffle() { 
+            // SECURITY: Send final payload
+            console.log("FINAL SUBMISSION:", SECURITY.getPayload());
+            alert("Daten übertragen!"); 
+            location.reload(); 
+        }
         
-        // FIX: Resize based on WINDOW (to detect PC), but use CONTAINER for canvas
         function resize() {
             const container = document.getElementById('game-container');
             const w = container.clientWidth;
             const h = container.clientHeight;
-            const screenW = window.innerWidth; // Use full screen width for PC detection
+            const screenW = window.innerWidth;
             
+            // DUAL BACKGROUND LOGIC
+            isPC = screenW >= 768; 
+
             cvs.width = w;
             cvs.height = h;
             
-            // AUTOMATIC ASPECT RATIO CALCULATION (4796x8000)
-            const heightRatio = 8000 / 4796; // ~1.668
+            const heightRatio = 8000 / 4796; 
 
-            // USE GAME CONFIG
-            if(screenW < 768) {
-                // Mobile
-                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth;
-                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; // AUTO HEIGHT
-                IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
-                IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize;
-                CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom;
-            } else {
+            if(isPC) {
                 // PC
                 IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth;
-                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; // AUTO HEIGHT
+                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
                 IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize;
                 IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize;
                 CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom;
+            } else {
+                // Mobile
+                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth;
+                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
+                IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
+                IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize;
+                CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom;
             }
 
             if(state.phase === 'idle') {
@@ -902,7 +916,6 @@
             scale = Math.min(w / VW, h / VH);
         }
 
-        // START LOADING
         loadAssets();
 
     </script>
