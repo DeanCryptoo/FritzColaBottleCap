@@ -255,7 +255,6 @@
             gameActive: false 
         };
 
-        // --- EASING FUNCTION (für "Satisfying" Feel) ---
         function easeOutBack(x) {
             const c1 = 1.70158;
             const c3 = c1 + 1;
@@ -266,21 +265,18 @@
             x: 0, y: 0, w: 22, h: 8, z: SCALE_NEAR, 
             vx: 0, vy: 0, rot: 0, vRot: 0,
             
-            // ANIMATION STATES
-            bodyX: 0,          // Die neue Flasche
-            oldBodyX: 0,       // Die alte Flasche (die rausfährt)
-            animState: 'idle', // 'idle', 'swapping_out', 'swapping_in'
-            animTimer: 0,      // 0.0 bis 1.0
+            bodyX: 0,          
+            oldBodyX: 0,       
+            animState: 'idle', 
+            animTimer: 0,      
             
             startSwap: function() {
-                // Phase 1: Alte Flasche fährt weg
                 this.animState = 'swapping_out';
-                this.oldBodyX = VW / 2; // Startet in der Mitte
+                this.oldBodyX = VW / 2; 
                 this.animTimer = 0;
             },
 
             reset: function(animate = false) {
-                // Deckel Werte resetten
                 this.y = CAP_START_Y;
                 this.z = SCALE_NEAR; 
                 this.vx = 0; this.vy = 0; this.rot = 0; this.vRot = 0;
@@ -288,7 +284,6 @@
                 if(animate) {
                     this.startSwap();
                 } else {
-                    // Sofortiger Reset (erster Start)
                     this.bodyX = VW / 2;
                     this.x = VW / 2;
                     this.animState = 'idle';
@@ -302,47 +297,33 @@
             
             updateAnimation: function() {
                 if (this.animState === 'swapping_out') {
-                    // Alte Flasche fährt nach rechts raus
-                    this.oldBodyX += 40; // Geschwindigkeit
-                    
-                    // Wenn weit genug draußen, starte Phase 2
+                    this.oldBodyX += 40; 
                     if (this.oldBodyX > VW + 200) {
                         this.animState = 'swapping_in';
                         this.animTimer = 0;
-                        this.bodyX = -200; // Startet weit links
+                        this.bodyX = -200; 
                     }
                 } 
                 else if (this.animState === 'swapping_in') {
-                    // Neue Flasche kommt rein (mit Easing)
-                    this.animTimer += 0.03; // Geschwindigkeit des Reinfliegens
+                    this.animTimer += 0.03; 
                     if(this.animTimer > 1) this.animTimer = 1;
                     
                     let t = easeOutBack(this.animTimer);
-                    
-                    // Interpolation von -200 bis VW/2
                     let startX = -200;
                     let targetX = VW / 2;
                     this.bodyX = startX + (targetX - startX) * t;
 
-                    // TILT & RECOVER LOGIK
-                    // Wenn t < 1, neigt sich die Flasche nach hinten (drag)
-                    // Am Ende (t ~ 1) wippt sie nach vorne (overshoot von easeOutBack erledigt das Wippen der Position, Rotation simulieren wir)
-                    let tilt = (1 - t) * -0.5; // Neigt sich nach links/hinten beim Reinfahren
-                    
-                    // Wir übertragen den Tilt auf die Flasche (nur visuell, nicht Physik)
-                    // HACK: Wir nutzen this.rot temporär für die Animation, setzen es am Ende auf 0
+                    let tilt = (1 - t) * -0.5; 
                     this.rot = tilt;
-
-                    this.x = this.bodyX; // Deckel klebt dran
+                    this.x = this.bodyX; 
 
                     if(this.animTimer >= 1) {
                         this.animState = 'idle';
-                        state.phase = 'idle'; // Spiel bereit
-                        this.rot = 0; // Rotation reset
+                        state.phase = 'idle'; 
+                        this.rot = 0; 
                     }
                 }
                 else if (state.phase !== 'flying') {
-                    // Normaler Zustand
                     this.bodyX = VW / 2;
                     if(state.phase === 'idle' || state.phase === 'aiming') {
                         this.x = this.bodyX;
@@ -511,25 +492,20 @@
                 drawStoredBottles(); 
                 ctx.restore();
 
-                // UPDATE ANIMATION
                 bottle.updateAnimation();
 
-                // 1. ZUERST: ALTE FLASCHE ZEICHNEN (wenn sie rausfährt)
                 if(bottle.animState === 'swapping_out') {
                     ctx.save();
                     ctx.translate(bottle.oldBodyX, CAP_START_Y + bottleOffsetY); 
                     ctx.scale(SCALE_NEAR, SCALE_NEAR);
-                    // Alte Flasche hat KEINEN Tilt, sie gleitet nur gerade raus
                     drawStationaryBottle(); 
                     ctx.restore();
                 }
 
-                // 2. DANN: NEUE FLASCHE ZEICHNEN (wenn sie reinkommt oder idle ist)
                 if(bottle.animState === 'swapping_in' || bottle.animState === 'idle') {
                     ctx.save();
                     ctx.translate(bottle.bodyX, CAP_START_Y + state.bottleRecoil + bottleOffsetY); 
                     ctx.scale(SCALE_NEAR, SCALE_NEAR);
-                    // Tilt anwenden während Animation
                     if(bottle.animState === 'swapping_in') {
                          ctx.rotate(bottle.rot);
                     }
@@ -544,22 +520,15 @@
                     bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
                 }
 
-                // Deckel zeichnen
-                // Der Deckel wird nur gezeichnet für die NEUE Flasche oder wenn er fliegt
-                // Während 'swapping_out' gibt es keinen Deckel an der alten Flasche
                 if(bottle.animState !== 'swapping_out' && state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
                     ctx.save();
                     let capAnimY = (state.phase === 'idle' || state.phase === 'aiming') ? bottleOffsetY : 0;
                     
-                    // Der Deckel muss die Rotation der Flasche mitmachen beim Reinfliegen
                     if(bottle.animState === 'swapping_in') {
-                        // Position anpassen relativ zum Drehpunkt der Flasche
-                        // Flasche dreht um Bottom Center (durch Translate in drawStationaryBottle), Deckel ist oben
                         ctx.translate(bottle.x, bottle.y + capAnimY);
-                        ctx.rotate(bottle.rot); // Selbe Rotation wie Flasche
+                        ctx.rotate(bottle.rot); 
                         ctx.scale(bottle.z, bottle.z);
                     } else {
-                        // Standard Physik Rotation
                         ctx.translate(bottle.x, bottle.y + capAnimY);
                         ctx.scale(bottle.z, bottle.z);
                         ctx.rotate(bottle.rot);
@@ -606,11 +575,25 @@
                 }
                 ctx.restore(); 
             }
+            
+            // --- FARBWECHSEL LOGIK ---
             let r = 0; let g = 0; let b = 0;
-            let opacity = GAME_CONFIG.visuals.bgOverlayOpacity; 
-            if(state.streak >= 4) { r = 30; opacity = 0.6; }
-            if(state.streak >= 6) { r = 50; opacity = 0.7; }
-            if(state.streak >= 8) { r = 80; opacity = 0.75 + (Math.sin(globalTime * 0.5) * 0.05); }
+            let opacity = GAME_CONFIG.visuals.bgOverlayOpacity; // Base 0.5
+            
+            if(state.streak >= 4 && state.streak < 7) {
+                // PHASE 1: FRITZ ROT (Pressure)
+                r = 200; g = 30; b = 30; 
+                opacity = 0.6;
+            } else if (state.streak >= 7 && state.streak < 9) {
+                 // PHASE 2: EISBLAU (Coolness / Ice Bucket)
+                 r = 0; g = 200; b = 255; 
+                 opacity = 0.65;
+            } else if (state.streak >= 9) {
+                 // PHASE 3: GOLD (Legendary)
+                 r = 255; g = 215; b = 0;
+                 opacity = 0.7 + (Math.sin(globalTime * 0.8) * 0.1); // Pulse
+            }
+            
             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`; 
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
@@ -641,7 +624,13 @@
             state.phase = 'in_bucket'; bottle.vx = 0; bottle.vy = 0; 
             state.bgEnergy = 150; state.cameraShake = 40; state.screenFlash = 0.4; state.freezeFrame = 8; bucketObj.scaleAnim = 1.2; triggerHaptic('success');
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
-            let waveColor = '#fff'; if(state.streak >= 4) waveColor = '#a5f2f3'; if(state.streak >= 8) waveColor = '#c91a1a'; 
+            
+            // KONFETTI FARBE ANPASSEN AN STREAK
+            let waveColor = '#fff'; 
+            if(state.streak >= 4 && state.streak < 7) waveColor = '#c91a1a'; // Rot
+            else if(state.streak >= 7 && state.streak < 9) waveColor = '#00ccff'; // Blau
+            else if(state.streak >= 9) waveColor = '#FFD700'; // Gold
+
             spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
 
             if(state.mode === 'streak') {
@@ -667,8 +656,7 @@
                 else if (state.mode === 'streak') {
                     if(state.streak >= 10) showScreen('s-raffle');
                     else {
-                        // ANIMATION STARTEN
-                        bottle.reset(true);
+                        bottle.reset(true); 
                     }
                 }
             }, 600);
