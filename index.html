@@ -59,9 +59,25 @@
         }
         header.hidden-ui { opacity: 0; transform: translateY(-20px); }
 
-        .logo { font-family: var(--font-head); font-size: 3rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+        /* Alte Text-Logo Klasse für Header (bleibt als Fallback oder für kleine UI) */
+        .logo-text { font-family: var(--font-head); font-size: 2rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.8); }
         .red { color: var(--red); }
         
+        /* NEU: Bild-Logo Styling für den Startscreen */
+        .start-logo {
+            width: 200px; /* Größe anpassen */
+            max-width: 80%;
+            height: auto;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
+            animation: floatLogo 3s ease-in-out infinite;
+        }
+
+        @keyframes floatLogo {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
         #score-box {
             font-family: var(--font-head); font-size: 1.5rem; color: #ccc;
             margin-top: 5px; letter-spacing: 1px; text-shadow: 0 2px 4px #000;
@@ -125,7 +141,7 @@
 
     <div id="game-container">
         <header id="main-header" class="hidden-ui">
-            <div class="logo">fritz<span class="red">-</span>kola</div>
+            <div class="logo-text">fritz<span class="red">-</span>kola</div>
             <div id="score-box">STREAK: <span id="score-val">0</span> / 10</div>
         </header>
 
@@ -139,6 +155,8 @@
 
         <div id="ui-layer">
             <div id="s-intro" class="screen active">
+                <img src="logo.png" alt="fritz-kola Logo" class="start-logo">
+                
                 <h1>DECKEL AB</h1>
                 <p>Flasche scannen um zu spielen.<br>Schnipp den Deckel in den Eimer.</p>
                 <div id="token-status" style="margin-bottom: 20px; font-family: monospace; color: var(--red); font-size: 0.9rem;">Prüfe Token...</div>
@@ -198,8 +216,8 @@
             bottle: 'Bottle.png',     
             cap: 'BottleCap.png',     
             bucket: 'icebucket.png',  
-            bgDesktop: 'backgroundDesktop.jpeg', // NEW
-            bgPhone: 'backgroundPhone.jpeg'      // NEW
+            bgDesktop: 'backgroundDesktop.jpeg', 
+            bgPhone: 'backgroundPhone.jpeg'      
         };
 
         // ==========================================
@@ -222,7 +240,6 @@
         };
 
         // --- SECURITY & FUTURE PROOFING ---
-        // Keeps track of input data to send to backend for verification
         const SECURITY = {
             startTime: 0,
             startPos: {x:0, y:0},
@@ -233,12 +250,11 @@
                     ts: Date.now(),
                     dx: vecX,
                     dy: vecY,
-                    valid: true // Backend would verify physics bounds here
+                    valid: true 
                 });
             },
             
             getPayload: function() {
-                // This is what you would send to your API endpoint
                 return JSON.stringify({
                     token: state.token,
                     sessionData: this.shots,
@@ -277,7 +293,6 @@
             shockwaves: [],
             floatTexts: [],
             bgParticles: [],
-            // Game Feel Variables
             bottleRecoil: 0 
         };
 
@@ -316,7 +331,7 @@
 
         function spawnParticles(x, y, type, customColor) {
             let count = type === 'confetti' ? 40 : 20;
-            if(type === 'gas') count = 15; // New Gas Type
+            if(type === 'gas') count = 15; 
 
             for(let i=0; i<count; i++) {
                 let color = '#fff';
@@ -332,14 +347,14 @@
                 } else if (type === 'spark') {
                     color = '#FFD700';
                 } else if (type === 'gas') {
-                    color = 'rgba(200, 200, 200, 0.4)'; // Smokey
+                    color = 'rgba(200, 200, 200, 0.4)'; 
                     size = Math.random() * 15 + 5;
                 }
 
                 particles.push({
                     x: x, y: y,
                     vx: (Math.random()-0.5) * (type==='confetti'?25:15),
-                    vy: (Math.random()-0.5) * (type==='confetti'?25:15) + (type==='gas'?-5:0), // Gas goes up
+                    vy: (Math.random()-0.5) * (type==='confetti'?25:15) + (type==='gas'?-5:0), 
                     life: life,
                     type: type,
                     color: color,
@@ -370,7 +385,6 @@
                     ctx.fillStyle = '#FFD700';
                     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
                 } else if (p.type === 'gas') {
-                    // Gas / Smoke effect
                     ctx.fillStyle = p.color;
                     ctx.beginPath(); ctx.arc(0,0, p.size, 0, Math.PI*2); ctx.fill();
                 } else {
@@ -403,7 +417,6 @@
         }
 
         function updateEffects() {
-            // Particles
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
                 p.x += p.vx * state.timeScale; 
@@ -416,28 +429,23 @@
                     p.vy += 0.5 * state.timeScale;
                     p.rot += p.vRot * state.timeScale; 
                 } else if (p.type === 'gas') {
-                    p.size *= 1.05; // Gas grows
-                    p.life -= 0.02; // Fades faster
+                    p.size *= 1.05; 
+                    p.life -= 0.02; 
                 }
                 
                 if(p.life <= 0) particles.splice(i, 1);
             }
-            // Shockwaves
             for(let i=state.shockwaves.length-1; i>=0; i--) {
                 let s = state.shockwaves[i];
                 s.r += 40; s.alpha -= 0.04; 
                 if(s.alpha <= 0) state.shockwaves.splice(i, 1);
             }
-            // Texts
             for(let i=state.floatTexts.length-1; i>=0; i--) {
                 let t = state.floatTexts[i];
                 t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
                 if(t.life <= 0) state.floatTexts.splice(i, 1);
             }
-            
             if(state.screenFlash > 0) state.screenFlash -= 0.1;
-
-            // Recoil recovery
             state.bottleRecoil *= 0.8;
         }
 
@@ -448,7 +456,6 @@
             if (type === 'success') navigator.vibrate([40, 50, 40, 50, 100]); 
         }
 
-        // --- PRELOADER ---
         function loadAssets() {
             let loaded = 0;
             const keys = Object.keys(imageSources);
@@ -480,7 +487,6 @@
             resize();
             window.addEventListener('resize', resize);
             
-            // Simulating API Check
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
             if(token) {
@@ -514,7 +520,6 @@
             ctx.translate(offsetX, 0);
             ctx.scale(scale, scale);
             
-            // Draw Shockwaves behind everything
             state.shockwaves.forEach(s => {
                 ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
                 ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke();
@@ -542,7 +547,7 @@
 
             // DRAW STATIONARY BOTTLE BODY (With Recoil)
             ctx.save();
-            ctx.translate(VW/2, CAP_START_Y + state.bottleRecoil); // Added Recoil Y
+            ctx.translate(VW/2, CAP_START_Y + state.bottleRecoil); 
             ctx.scale(SCALE_NEAR, SCALE_NEAR);
             drawStationaryBottle();
             ctx.restore();
@@ -588,7 +593,6 @@
             requestAnimationFrame(loop);
         }
 
-        // === DUAL BACKGROUND SYSTEM ===
         function drawBackground() {
             let bgImg = isPC ? images.bgDesktop : images.bgPhone;
             
@@ -664,8 +668,8 @@
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
             
             let waveColor = '#fff';
-            if(state.streak >= 4) waveColor = '#a5f2f3'; // Blue
-            if(state.streak >= 8) waveColor = '#c91a1a'; // Red
+            if(state.streak >= 4) waveColor = '#a5f2f3'; 
+            if(state.streak >= 8) waveColor = '#c91a1a'; 
             
             spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); 
             spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
@@ -686,7 +690,6 @@
                 spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150);
             }
 
-            // MOCK: Send Payload to server
             console.log("SENDING SECURE SCORE:", SECURITY.getPayload());
 
             setTimeout(() => {
@@ -774,7 +777,6 @@
                 state.phase = 'aiming'; 
                 document.getElementById('tutorial-overlay').classList.remove('show');
                 
-                // SECURITY: Log Start
                 SECURITY.startTime = Date.now();
                 SECURITY.startPos = {x: virtX, y: virtY};
             }
@@ -798,21 +800,15 @@
             let dx = input.currX - input.startX;
             let dy = input.currY - input.startY;
             
-            // Swipe UP logic
             if(dy < -30) { 
                 state.phase = 'flying';
                 bottle.vx = dx * POWER_X; 
                 bottle.vy = dy * POWER_Y; 
                 bottle.vRot = (Math.random() - 0.5) * 0.8; 
                 
-                // GAME FEEL: FRITZ ZISCH
-                // Spawn gas particles at the bottle neck (center of screen, CAP_START_Y)
                 spawnParticles(VW/2, CAP_START_Y, 'gas');
-                
-                // GAME FEEL: BOTTLE RECOIL
-                state.bottleRecoil = 25; // Push bottle down
+                state.bottleRecoil = 25; 
 
-                // SECURITY: Log Shot
                 SECURITY.recordShot(bottle.vx, bottle.vy);
             } else {
                 state.phase = 'idle'; 
@@ -873,7 +869,6 @@
             bucketObj.resetPos();
         }
         function submitRaffle() { 
-            // SECURITY: Send final payload
             console.log("FINAL SUBMISSION:", SECURITY.getPayload());
             alert("Daten übertragen!"); 
             location.reload(); 
@@ -885,7 +880,6 @@
             const h = container.clientHeight;
             const screenW = window.innerWidth;
             
-            // DUAL BACKGROUND LOGIC
             isPC = screenW >= 768; 
 
             cvs.width = w;
@@ -894,14 +888,12 @@
             const heightRatio = 8000 / 4796; 
 
             if(isPC) {
-                // PC
                 IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth;
                 IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
                 IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize;
                 IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize;
                 CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom;
             } else {
-                // Mobile
                 IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth;
                 IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
                 IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
