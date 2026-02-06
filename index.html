@@ -95,6 +95,40 @@
         
         #s-intro { padding-top: 0; } 
 
+        /* SCANNER SPECIFIC STYLES */
+        #s-scan {
+            background: #000;
+            padding-top: 0;
+            z-index: 60; /* Above everything else */
+        }
+        #video-feed {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0.7;
+            transform: scaleX(-1); /* Mirror effect usually feels better, or remove for back cam */
+        }
+        .scan-frame {
+            width: 250px; height: 250px; 
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 20px;
+            position: relative;
+            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8); /* Darken everything outside */
+            display: flex; justify-content: center; align-items: center;
+        }
+        .scan-corner {
+            position: absolute; width: 40px; height: 40px; border-color: var(--red); border-style: solid; border-width: 4px;
+        }
+        .tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-radius: 20px 0 0 0; }
+        .tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-radius: 0 20px 0 0; }
+        .bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-radius: 0 0 0 20px; }
+        .br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-radius: 0 0 20px 0; }
+
+        .scan-line {
+            position: absolute; width: 90%; height: 2px; background: var(--red);
+            box-shadow: 0 0 15px var(--red);
+            animation: scanAnim 2s infinite ease-in-out;
+        }
+        @keyframes scanAnim { 0% { top: 10%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 90%; opacity: 0; } }
+
         .start-logo {
             width: 200px; max-width: 60%; height: auto;
             margin-bottom: 20px;
@@ -198,7 +232,19 @@
         </div>
 
         <div id="ui-layer">
-            <div id="s-intro" class="screen active">
+            <div id="s-scan" class="screen">
+                <video id="video-feed" autoplay playsinline muted></video>
+                <div class="scan-frame">
+                    <div class="scan-corner tl"></div>
+                    <div class="scan-corner tr"></div>
+                    <div class="scan-corner bl"></div>
+                    <div class="scan-corner br"></div>
+                    <div class="scan-line"></div>
+                </div>
+                <p style="position: relative; z-index: 10; font-family: monospace; background: rgba(0,0,0,0.6); padding: 5px 10px;">CODE WIRD GESCANNT...</p>
+            </div>
+
+            <div id="s-intro" class="screen">
                 <img src="logo.png" alt="fritz-kola Logo" class="start-logo">
                 <h1>DECKEL AB</h1>
                 <p>Flasche scannen um zu spielen.<br>Schnipp den Deckel in den Eimer.</p>
@@ -257,8 +303,8 @@
 
             if (type === 'pop') {
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(300, now);
-                osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+                osc.frequency.setValueAtTime(220, now); // LOWERED PITCH
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
                 gain.gain.setValueAtTime(0.3, now);
                 gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
                 osc.start(now); osc.stop(now + 0.1);
@@ -308,8 +354,8 @@
         };
 
         const GAME_CONFIG = {
-            pc: { bottleWidth: 240, bottleBottom: 150, capSize: 60 },
-            mobile: { bottleWidth: 220, bottleBottom: 150, capSize: 60 },
+            pc: { bottleWidth: 240, bottleBottom: 150, capSize: 60, capYOffset: 12 },
+            mobile: { bottleWidth: 220, bottleBottom: 150, capSize: 60, capYOffset: 12 },
             visuals: { bgOverlayOpacity: 0.5 }
         };
 
@@ -320,12 +366,12 @@
         };
 
         const GRAVITY = 0.85;  
-        // TUNED PHYSICS
         const POWER_X = 0.11;  
         const POWER_Y = 0.17;  
         const SCALE_NEAR = 3.5; 
         const SCALE_FAR = 1.1; 
         let CAP_START_Y = VH - 200; 
+        let CAP_OFFSET = 12; // Base offset
 
         let IMG_SIZES = { bottle: { w: 100, h: 100 }, cap: { w: 30, h: 30 }, bucket: { w: 240, h: 240 } };
 
@@ -507,9 +553,51 @@
         function init() {
             resize(); window.addEventListener('resize', resize);
             const urlParams = new URLSearchParams(window.location.search); const token = urlParams.get('token');
-            if(token) { state.token = token; document.getElementById('token-status').innerText = "TOKEN AKTIV"; document.getElementById('token-status').style.color = "#fff"; document.getElementById('btn-start').classList.remove('hidden'); }
-            else { state.token = "demo-" + Date.now(); document.getElementById('token-status').innerText = "DEMO MODUS"; document.getElementById('token-status').style.color = "#aaa"; document.getElementById('btn-start').classList.remove('hidden'); }
-            bottle.reset(); loop();
+            if(token) state.token = token; 
+            else state.token = "demo-" + Date.now();
+            
+            bottle.reset(); 
+            loop();
+
+            // TRIGGER CAMERA SCANNING FIRST
+            startCameraScan();
+        }
+
+        async function startCameraScan() {
+            showScreen('s-scan');
+            const video = document.getElementById('video-feed');
+            try {
+                // Request Camera
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+                
+                // Simulate Scan Delay
+                setTimeout(() => {
+                    // Stop Camera to save battery
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Show Intro
+                    checkTokenAndShowIntro();
+                }, 2000);
+            } catch (err) {
+                console.log("Camera access denied or failed", err);
+                // Fallback immediately if no camera
+                setTimeout(() => checkTokenAndShowIntro(), 1000);
+            }
+        }
+
+        function checkTokenAndShowIntro() {
+            showScreen('s-intro');
+            if(state.token.startsWith('demo')) {
+                document.getElementById('token-status').innerText = "DEMO MODUS"; 
+                document.getElementById('token-status').style.color = "#aaa"; 
+            } else {
+                document.getElementById('token-status').innerText = "TOKEN AKTIV"; 
+                document.getElementById('token-status').style.color = "#fff"; 
+            }
+            document.getElementById('btn-start').classList.remove('hidden');
         }
 
         function drawShadow(x, scaleVal) {
@@ -595,6 +683,15 @@
                     ctx.save();
                     let capAnimY = (state.phase === 'idle' || state.phase === 'aiming') ? bottleOffsetY : 0;
                     
+                    let totalY = bottle.y + capAnimY + CAP_OFFSET;
+
+                    // AIM TENSION JITTER
+                    let jitterX = 0; let jitterY = 0;
+                    if(state.phase === 'aiming') {
+                        jitterX = (Math.random()-0.5) * 2;
+                        jitterY = (Math.random()-0.5) * 2;
+                    }
+
                     // IMPROVED TRAIL RENDERING
                     if(state.phase === 'flying' && state.trail.length > 1) {
                         ctx.save();
@@ -606,13 +703,12 @@
                             let p2 = state.trail[i+1];
                             
                             ctx.beginPath();
-                            ctx.moveTo(p1.x, p1.y + capAnimY);
-                            ctx.lineTo(p2.x, p2.y + capAnimY);
+                            ctx.moveTo(p1.x, p1.y + capAnimY + CAP_OFFSET);
+                            ctx.lineTo(p2.x, p2.y + capAnimY + CAP_OFFSET);
                             
-                            // Tapering Size and Opacity
                             let progress = i / state.trail.length;
-                            let alpha = progress * 0.6; // Fade out tail
-                            let width = progress * 25 * bottle.z; // Taper width
+                            let alpha = progress * 0.6; 
+                            let width = progress * 25 * bottle.z; 
                             
                             ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
                             ctx.lineWidth = width;
@@ -622,9 +718,9 @@
                     }
 
                     if(bottle.animState === 'swapping_in') {
-                        ctx.translate(bottle.x, bottle.y + capAnimY); ctx.rotate(bottle.rot); ctx.scale(bottle.z, bottle.z);
+                        ctx.translate(bottle.x + jitterX, totalY + jitterY); ctx.rotate(bottle.rot); ctx.scale(bottle.z, bottle.z);
                     } else {
-                        ctx.translate(bottle.x, bottle.y + capAnimY); ctx.scale(bottle.z, bottle.z); ctx.rotate(bottle.rot);
+                        ctx.translate(bottle.x + jitterX, totalY + jitterY); ctx.scale(bottle.z, bottle.z); ctx.rotate(bottle.rot);
                     }
                     
                     drawCapGraphic();
@@ -698,10 +794,10 @@
             // Record Trail
             if(globalTime % 0.1 < 0.05) state.trail.push({x: bottle.x, y: bottle.y});
 
-            let distToBucket = Math.sqrt(Math.pow(bottle.x - bucketObj.x, 2) + Math.pow(bottle.y - bucketObj.y, 2));
-            if(distToBucket < 220 && Math.abs(bottle.y - bucketObj.y) < 180 && bottle.vy > 0) {
-                state.timeScale += (0.35 - state.timeScale) * 0.15; if(Math.random() > 0.8) triggerHaptic('tension');
-            } else { state.timeScale += (1.0 - state.timeScale) * 0.1; }
+            // --- LAG FIX: CONSTANT TIME SCALE ---
+            // Removed logic that slowed down timeScale based on distance
+            state.timeScale = 1.0; 
+            // ------------------------------------
 
             bottle.vy += GRAVITY * state.timeScale; bottle.x += bottle.vx * state.timeScale; bottle.y += bottle.vy * state.timeScale; bottle.rot += bottle.vRot * state.timeScale;
 
@@ -723,6 +819,10 @@
             playSound('win');
             state.phase = 'in_bucket'; bottle.vx = 0; bottle.vy = 0; 
             state.bgEnergy = 150; state.cameraShake = 40; state.screenFlash = 0.4; state.freezeFrame = 8; 
+            
+            // DEPTH MASKING: Slide down logic simulated by fading
+            bottle.y += 20; 
+
             bucketObj.squash = {x: 1.3, y: 0.7}; 
             triggerHaptic('success');
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
@@ -903,8 +1003,8 @@
             const container = document.getElementById('game-container'); const w = container.clientWidth; const h = container.clientHeight; const screenW = window.innerWidth;
             isPC = screenW >= 768; 
             cvs.width = w; cvs.height = h; const heightRatio = 8000 / 4796; 
-            if(isPC) { IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize; IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize; CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom; }
-            else { IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize; IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize; CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom; }
+            if(isPC) { IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize; IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize; CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom; CAP_OFFSET = GAME_CONFIG.pc.capYOffset; }
+            else { IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize; IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize; CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom; CAP_OFFSET = GAME_CONFIG.mobile.capYOffset; }
             if(state.phase === 'idle') bottle.y = CAP_START_Y;
             scale = Math.min(w / VW, h / VH);
         }
