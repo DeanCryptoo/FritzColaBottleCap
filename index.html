@@ -55,24 +55,20 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             padding-top: 40px; z-index: 50; pointer-events: none; 
             transition: opacity 0.3s ease, transform 0.3s ease;
-            opacity: 1; transform: translateY(0);
+            opacity: 0; transform: translateY(-50px); 
         }
+        header.show-ui { opacity: 1; transform: translateY(0); }
         header.hidden-ui { opacity: 0; transform: translateY(-20px); }
 
-        /* Alte Text-Logo Klasse für Header (bleibt als Fallback oder für kleine UI) */
         .logo-text { font-family: var(--font-head); font-size: 2rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.8); }
         .red { color: var(--red); }
         
-        /* NEU: Bild-Logo Styling für den Startscreen */
         .start-logo {
-            width: 200px; /* Größe anpassen */
-            max-width: 80%;
-            height: auto;
+            width: 200px; max-width: 80%; height: auto;
             margin-bottom: 20px;
             filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
             animation: floatLogo 3s ease-in-out infinite;
         }
-
         @keyframes floatLogo {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-10px); }
@@ -88,7 +84,7 @@
 
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); 
+            background: rgba(0,0,0,0.85); 
             display: none; 
             flex-direction: column; justify-content: center; align-items: center;
             text-align: center; padding: 20px;
@@ -140,7 +136,7 @@
     <div id="loading-screen">LADE BILDER...</div>
 
     <div id="game-container">
-        <header id="main-header" class="hidden-ui">
+        <header id="main-header">
             <div class="logo-text">fritz<span class="red">-</span>kola</div>
             <div id="score-box">STREAK: <span id="score-val">0</span> / 10</div>
         </header>
@@ -155,8 +151,7 @@
 
         <div id="ui-layer">
             <div id="s-intro" class="screen active">
-                <img src="Logo.png" alt="fritz-kola Logo" class="start-logo">
-                
+                <img src="logo.png" alt="fritz-kola Logo" class="start-logo">
                 <h1>DECKEL AB</h1>
                 <p>Flasche scannen um zu spielen.<br>Schnipp den Deckel in den Eimer.</p>
                 <div id="token-status" style="margin-bottom: 20px; font-family: monospace; color: var(--red); font-size: 0.9rem;">Prüfe Token...</div>
@@ -177,9 +172,9 @@
                     <p>Aber du kannst noch groß abräumen.</p>
                 </div>
                 <div id="iw-continue-container" class="hidden" style="width: 100%; max-width: 320px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
-                    <h3 style="margin:0 0 10px 0; font-family:var(--font-head); color:var(--white);">DAS GEWINNSPIEL</h3>
-                    <p style="margin: 0 0 15px 0; color:#888;">Triff noch 9 Mal in Folge für die große Verlosung.</p>
-                    <button class="btn" ontouchstart="startStreakMode()" onclick="startStreakMode()">WEITER (NOCH 9)</button>
+                    <h3 style="margin:0 0 10px 0; font-family:var(--font-head); color:var(--white);">HAUPTPREIS GEWINNEN?</h3>
+                    <p style="margin: 0 0 15px 0; color:#888;">Schaffst du 10 Treffer in Folge?</p>
+                    <button class="btn" ontouchstart="startStreakMode()" onclick="startStreakMode()">CHALLENGE STARTEN</button>
                     <button class="btn btn-outline" style="margin-top:10px" ontouchstart="location.reload()" onclick="location.reload()">NEIN DANKE</button>
                 </div>
             </div>
@@ -208,75 +203,37 @@
         const VW = 600;
         let scale = 1; 
         let globalTime = 0; 
-        let isPC = false; // Detection flag
+        let isPC = false; 
 
-        // --- ASSET LOADER (UPDATED FOR DUAL BG) ---
+        // --- ASSET LOADER ---
         const images = {};
         const imageSources = {
             bottle: 'Bottle.png',     
             cap: 'BottleCap.png',     
             bucket: 'icebucket.png',  
-            bgDesktop: 'backgroundDesktop.jpeg', 
             bgPhone: 'backgroundPhone.jpeg'      
         };
 
-        // ==========================================
-        // === GAME CONFIGURATION ===
-        // ==========================================
         const GAME_CONFIG = {
-            pc: {
-                bottleWidth: 120,     
-                bottleBottom: 220,    
-                capSize: 32           
-            },
-            mobile: {
-                bottleWidth: 110,     
-                bottleBottom: 100,     
-                capSize: 30           
-            },
-            visuals: {
-                bgOverlayOpacity: 0.5 
-            }
+            pc: { bottleWidth: 120, bottleBottom: 220, capSize: 32 },
+            mobile: { bottleWidth: 110, bottleBottom: 100, capSize: 30 },
+            visuals: { bgOverlayOpacity: 0.5 }
         };
 
-        // --- SECURITY & FUTURE PROOFING ---
         const SECURITY = {
-            startTime: 0,
-            startPos: {x:0, y:0},
-            shots: [],
-            
-            recordShot: function(vecX, vecY) {
-                this.shots.push({
-                    ts: Date.now(),
-                    dx: vecX,
-                    dy: vecY,
-                    valid: true 
-                });
-            },
-            
-            getPayload: function() {
-                return JSON.stringify({
-                    token: state.token,
-                    sessionData: this.shots,
-                    finalStreak: state.streak
-                });
-            }
+            startTime: 0, startPos: {x:0, y:0}, shots: [],
+            recordShot: function(vecX, vecY) { this.shots.push({ ts: Date.now(), dx: vecX, dy: vecY, valid: true }); },
+            getPayload: function() { return JSON.stringify({ token: state.token, sessionData: this.shots, finalStreak: state.streak }); }
         };
 
-        // --- PHYSICS CONFIG ---
         const GRAVITY = 0.85;  
         const POWER_X = 0.14;  
         const POWER_Y = 0.16;  
         const SCALE_NEAR = 3.5; 
         const SCALE_FAR = 1.1; 
-        
         let CAP_START_Y = VH - 200; 
 
-        let IMG_SIZES = {
-            bottle: { w: 100, h: 100 }, 
-            cap: { w: 30, h: 30 },      
-            bucket: { w: 240, h: 240 }  
-        };
+        let IMG_SIZES = { bottle: { w: 100, h: 100 }, cap: { w: 30, h: 30 }, bucket: { w: 240, h: 240 } };
 
         const state = {
             token: null,
@@ -293,21 +250,104 @@
             shockwaves: [],
             floatTexts: [],
             bgParticles: [],
-            bottleRecoil: 0 
+            bottleRecoil: 0,
+            introProgress: 0, 
+            gameActive: false 
         };
+
+        // --- EASING FUNCTION (für "Satisfying" Feel) ---
+        function easeOutBack(x) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+        }
 
         const bottle = {
             x: 0, y: 0, w: 22, h: 8, z: SCALE_NEAR, 
             vx: 0, vy: 0, rot: 0, vRot: 0,
-            reset: function() {
-                this.x = VW / 2; 
+            
+            // ANIMATION STATES
+            bodyX: 0,          // Die neue Flasche
+            oldBodyX: 0,       // Die alte Flasche (die rausfährt)
+            animState: 'idle', // 'idle', 'swapping_out', 'swapping_in'
+            animTimer: 0,      // 0.0 bis 1.0
+            
+            startSwap: function() {
+                // Phase 1: Alte Flasche fährt weg
+                this.animState = 'swapping_out';
+                this.oldBodyX = VW / 2; // Startet in der Mitte
+                this.animTimer = 0;
+            },
+
+            reset: function(animate = false) {
+                // Deckel Werte resetten
                 this.y = CAP_START_Y;
                 this.z = SCALE_NEAR; 
                 this.vx = 0; this.vy = 0; this.rot = 0; this.vRot = 0;
-                state.phase = 'idle';
+                
+                if(animate) {
+                    this.startSwap();
+                } else {
+                    // Sofortiger Reset (erster Start)
+                    this.bodyX = VW / 2;
+                    this.x = VW / 2;
+                    this.animState = 'idle';
+                    state.phase = 'idle';
+                }
+                
                 state.cameraY = 0;
                 state.timeScale = 1.0; 
                 state.bottleRecoil = 0;
+            },
+            
+            updateAnimation: function() {
+                if (this.animState === 'swapping_out') {
+                    // Alte Flasche fährt nach rechts raus
+                    this.oldBodyX += 40; // Geschwindigkeit
+                    
+                    // Wenn weit genug draußen, starte Phase 2
+                    if (this.oldBodyX > VW + 200) {
+                        this.animState = 'swapping_in';
+                        this.animTimer = 0;
+                        this.bodyX = -200; // Startet weit links
+                    }
+                } 
+                else if (this.animState === 'swapping_in') {
+                    // Neue Flasche kommt rein (mit Easing)
+                    this.animTimer += 0.03; // Geschwindigkeit des Reinfliegens
+                    if(this.animTimer > 1) this.animTimer = 1;
+                    
+                    let t = easeOutBack(this.animTimer);
+                    
+                    // Interpolation von -200 bis VW/2
+                    let startX = -200;
+                    let targetX = VW / 2;
+                    this.bodyX = startX + (targetX - startX) * t;
+
+                    // TILT & RECOVER LOGIK
+                    // Wenn t < 1, neigt sich die Flasche nach hinten (drag)
+                    // Am Ende (t ~ 1) wippt sie nach vorne (overshoot von easeOutBack erledigt das Wippen der Position, Rotation simulieren wir)
+                    let tilt = (1 - t) * -0.5; // Neigt sich nach links/hinten beim Reinfahren
+                    
+                    // Wir übertragen den Tilt auf die Flasche (nur visuell, nicht Physik)
+                    // HACK: Wir nutzen this.rot temporär für die Animation, setzen es am Ende auf 0
+                    this.rot = tilt;
+
+                    this.x = this.bodyX; // Deckel klebt dran
+
+                    if(this.animTimer >= 1) {
+                        this.animState = 'idle';
+                        state.phase = 'idle'; // Spiel bereit
+                        this.rot = 0; // Rotation reset
+                    }
+                }
+                else if (state.phase !== 'flying') {
+                    // Normaler Zustand
+                    this.bodyX = VW / 2;
+                    if(state.phase === 'idle' || state.phase === 'aiming') {
+                        this.x = this.bodyX;
+                    }
+                }
             }
         };
 
@@ -328,39 +368,24 @@
         bucketObj.init();
 
         const particles = [];
-
         function spawnParticles(x, y, type, customColor) {
             let count = type === 'confetti' ? 40 : 20;
             if(type === 'gas') count = 15; 
-
             for(let i=0; i<count; i++) {
                 let color = '#fff';
                 let size = Math.random() * 8 + 2;
-                let life = 1.0;
-                
                 if(type === 'confetti') {
                     if(customColor) color = customColor; 
-                    else {
-                        const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700'];
-                        color = cols[Math.floor(Math.random()*cols.length)];
-                    }
-                } else if (type === 'spark') {
-                    color = '#FFD700';
-                } else if (type === 'gas') {
-                    color = 'rgba(200, 200, 200, 0.4)'; 
-                    size = Math.random() * 15 + 5;
-                }
+                    else { const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700']; color = cols[Math.floor(Math.random()*cols.length)]; }
+                } else if (type === 'spark') color = '#FFD700';
+                else if (type === 'gas') { color = 'rgba(200, 200, 200, 0.4)'; size = Math.random() * 15 + 5; }
 
                 particles.push({
                     x: x, y: y,
                     vx: (Math.random()-0.5) * (type==='confetti'?25:15),
                     vy: (Math.random()-0.5) * (type==='confetti'?25:15) + (type==='gas'?-5:0), 
-                    life: life,
-                    type: type,
-                    color: color,
-                    size: size,
-                    rot: Math.random() * Math.PI, 
-                    vRot: (Math.random()-0.5) * 0.5 
+                    life: 1.0, type: type, color: color, size: size,
+                    rot: Math.random() * Math.PI, vRot: (Math.random()-0.5) * 0.5 
                 });
             }
         }
@@ -370,83 +395,56 @@
                 ctx.save();
                 ctx.translate(p.x, p.y);
                 ctx.globalAlpha = p.life;
-                
                 if(p.type === 'splash') {
                     let rad = ctx.createRadialGradient(0,0,0, 0,0,12);
-                    rad.addColorStop(0, 'rgba(165, 242, 243, 0.8)');
-                    rad.addColorStop(1, 'rgba(165, 242, 243, 0)');
-                    ctx.fillStyle = rad;
-                    ctx.beginPath(); ctx.arc(0,0, 12, 0, Math.PI*2); ctx.fill();
+                    rad.addColorStop(0, 'rgba(165, 242, 243, 0.8)'); rad.addColorStop(1, 'rgba(165, 242, 243, 0)');
+                    ctx.fillStyle = rad; ctx.beginPath(); ctx.arc(0,0, 12, 0, Math.PI*2); ctx.fill();
                 } else if (p.type === 'confetti') {
-                    ctx.fillStyle = p.color;
-                    ctx.rotate(p.rot);
-                    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                    ctx.fillStyle = p.color; ctx.rotate(p.rot); ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
                 } else if (p.type === 'spark') {
-                    ctx.fillStyle = '#FFD700';
-                    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
+                    ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
                 } else if (p.type === 'gas') {
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath(); ctx.arc(0,0, p.size, 0, Math.PI*2); ctx.fill();
-                } else {
-                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
-                }
+                    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0,0, p.size, 0, Math.PI*2); ctx.fill();
+                } else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill(); }
                 ctx.restore();
             });
         }
 
-        function spawnFloatingText(text, x, y) {
-            state.floatTexts.push({ text: text, x: x, y: y, life: 1.0, vy: -2 });
-        }
-
+        function spawnFloatingText(text, x, y) { state.floatTexts.push({ text: text, x: x, y: y, life: 1.0, vy: -2 }); }
         function drawFloatingTexts() {
-            ctx.save();
-            ctx.textAlign = 'center';
+            ctx.save(); ctx.textAlign = 'center';
             state.floatTexts.forEach(t => {
-                ctx.font = "bold 40px 'Anton', sans-serif";
-                ctx.fillStyle = '#fff';
-                ctx.globalAlpha = t.life;
-                ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
-                ctx.strokeText(t.text, t.x, t.y);
-                ctx.fillText(t.text, t.x, t.y);
+                ctx.font = "bold 40px 'Anton', sans-serif"; ctx.fillStyle = '#fff'; ctx.globalAlpha = t.life;
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y);
             });
             ctx.restore();
         }
 
-        function spawnShockwave(x, y, color) {
-            state.shockwaves.push({ x: x, y: y, r: 10, maxR: 800, alpha: 0.8, color: color });
-        }
-
+        function spawnShockwave(x, y, color) { state.shockwaves.push({ x: x, y: y, r: 10, maxR: 800, alpha: 0.8, color: color }); }
         function updateEffects() {
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
-                p.x += p.vx * state.timeScale; 
-                p.y += p.vy * state.timeScale;
-                p.life -= 0.03 * state.timeScale;
-                
-                if(p.type === 'splash') {
-                    p.vy += 0.5 * state.timeScale;
-                } else if (p.type === 'confetti') {
-                    p.vy += 0.5 * state.timeScale;
-                    p.rot += p.vRot * state.timeScale; 
-                } else if (p.type === 'gas') {
-                    p.size *= 1.05; 
-                    p.life -= 0.02; 
-                }
-                
+                p.x += p.vx * state.timeScale; p.y += p.vy * state.timeScale; p.life -= 0.03 * state.timeScale;
+                if(p.type === 'splash') p.vy += 0.5 * state.timeScale;
+                else if (p.type === 'confetti') { p.vy += 0.5 * state.timeScale; p.rot += p.vRot * state.timeScale; }
+                else if (p.type === 'gas') { p.size *= 1.05; p.life -= 0.02; }
                 if(p.life <= 0) particles.splice(i, 1);
             }
             for(let i=state.shockwaves.length-1; i>=0; i--) {
-                let s = state.shockwaves[i];
-                s.r += 40; s.alpha -= 0.04; 
+                let s = state.shockwaves[i]; s.r += 40; s.alpha -= 0.04; 
                 if(s.alpha <= 0) state.shockwaves.splice(i, 1);
             }
             for(let i=state.floatTexts.length-1; i>=0; i--) {
-                let t = state.floatTexts[i];
-                t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
+                let t = state.floatTexts[i]; t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
                 if(t.life <= 0) state.floatTexts.splice(i, 1);
             }
             if(state.screenFlash > 0) state.screenFlash -= 0.1;
             state.bottleRecoil *= 0.8;
+
+            if(state.gameActive && state.introProgress < 1) {
+                state.introProgress += 0.02;
+                if(state.introProgress > 1) state.introProgress = 1;
+            }
         }
 
         function triggerHaptic(type) {
@@ -457,133 +455,132 @@
         }
 
         function loadAssets() {
-            let loaded = 0;
-            const keys = Object.keys(imageSources);
-            const total = keys.length;
+            let loaded = 0; const keys = Object.keys(imageSources); const total = keys.length;
             if(total === 0) { init(); return; }
             keys.forEach(key => {
-                const img = new Image();
-                img.src = imageSources[key];
-                img.onload = () => {
-                    loaded++;
-                    images[key] = img;
-                    if(loaded === total) {
-                        document.getElementById('loading-screen').style.opacity = 0;
-                        setTimeout(() => {
-                            document.getElementById('loading-screen').style.display = 'none';
-                            init();
-                        }, 500);
-                    }
-                };
-                img.onerror = () => {
-                    console.error("Failed to load: " + imageSources[key]);
-                    loaded++;
-                    if(loaded === total) init();
-                };
+                const img = new Image(); img.src = imageSources[key];
+                img.onload = () => { loaded++; images[key] = img; if(loaded === total) { document.getElementById('loading-screen').style.opacity = 0; setTimeout(() => { document.getElementById('loading-screen').style.display = 'none'; init(); }, 500); } };
+                img.onerror = () => { loaded++; if(loaded === total) init(); };
             });
         }
 
         function init() {
-            resize();
-            window.addEventListener('resize', resize);
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-            if(token) {
-                state.token = token;
-                document.getElementById('token-status').innerText = "TOKEN AKTIV";
-                document.getElementById('token-status').style.color = "#fff";
-                document.getElementById('btn-start').classList.remove('hidden');
-            } else {
-                state.token = "demo-" + Date.now();
-                document.getElementById('token-status').innerText = "DEMO MODUS";
-                document.getElementById('token-status').style.color = "#aaa";
-                document.getElementById('btn-start').classList.remove('hidden');
-            }
-            bottle.reset();
-            loop();
+            resize(); window.addEventListener('resize', resize);
+            const urlParams = new URLSearchParams(window.location.search); const token = urlParams.get('token');
+            if(token) { state.token = token; document.getElementById('token-status').innerText = "TOKEN AKTIV"; document.getElementById('token-status').style.color = "#fff"; document.getElementById('btn-start').classList.remove('hidden'); }
+            else { state.token = "demo-" + Date.now(); document.getElementById('token-status').innerText = "DEMO MODUS"; document.getElementById('token-status').style.color = "#aaa"; document.getElementById('btn-start').classList.remove('hidden'); }
+            bottle.reset(); loop();
         }
 
         function loop() {
             globalTime += 0.05;
-            if(state.freezeFrame > 0) {
-                state.freezeFrame--;
-                requestAnimationFrame(loop);
-                return;
-            }
+            if(state.freezeFrame > 0) { state.freezeFrame--; requestAnimationFrame(loop); return; }
             state.bgEnergy *= 0.95; 
 
             drawBackground();
 
-            ctx.save();
-            let offsetX = (cvs.width - (VW * scale)) / 2;
-            ctx.translate(offsetX, 0);
-            ctx.scale(scale, scale);
-            
-            state.shockwaves.forEach(s => {
-                ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-                ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke();
-            });
-            ctx.restore();
-            
-            ctx.save();
-            ctx.translate(offsetX, 0);
-            ctx.scale(scale, scale);
+            if(state.gameActive) {
+                let easedIntro = easeOutBack(state.introProgress);
+                let bucketOffsetY = (1 - easedIntro) * -1000; 
+                let bottleOffsetY = (1 - easedIntro) * 1000; 
 
-            let shakeX = (Math.random()-0.5) * state.cameraShake;
-            let shakeY = (Math.random()-0.5) * state.cameraShake;
-            state.cameraShake *= 0.85; 
-            ctx.translate(shakeX, state.cameraY + shakeY);
-
-            bucketObj.update();
-            let bScale = bucketObj.scale * bucketObj.scaleAnim; 
-
-            ctx.save();
-            ctx.translate(bucketObj.x, bucketObj.y);
-            ctx.scale(bScale, bScale); 
-            drawBucketImage(); 
-            drawStoredBottles(); 
-            ctx.restore();
-
-            // DRAW STATIONARY BOTTLE BODY (With Recoil)
-            ctx.save();
-            ctx.translate(VW/2, CAP_START_Y + state.bottleRecoil); 
-            ctx.scale(SCALE_NEAR, SCALE_NEAR);
-            drawStationaryBottle();
-            ctx.restore();
-
-            // HANDLE FLYING CAP
-            if(state.phase === 'flying') {
-                let distTotal = (VH - 150) - bucketObj.y;
-                let currentDist = bottle.y - bucketObj.y;
-                let progress = Math.max(0, Math.min(1, currentDist / distTotal));
-                bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
-            } else if (state.phase === 'idle') {
-                bottle.reset(); 
-            }
-
-            // Draw Cap 
-            if(state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
                 ctx.save();
-                ctx.translate(bottle.x, bottle.y);
-                ctx.scale(bottle.z, bottle.z);
-                ctx.rotate(bottle.rot);
+                let offsetX = (cvs.width - (VW * scale)) / 2;
+                ctx.translate(offsetX, 0);
+                ctx.scale(scale, scale);
                 
-                let speed = Math.sqrt(bottle.vx*bottle.vx + bottle.vy*bottle.vy);
-                if(state.phase === 'flying' && speed > 10) {
-                    let offset = speed * 0.4;
-                    ctx.save(); ctx.translate(0, offset); ctx.globalAlpha = 0.4; drawCapGraphic(); ctx.restore();
+                state.shockwaves.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke(); });
+                ctx.restore();
+                
+                ctx.save();
+                ctx.translate(offsetX, 0);
+                ctx.scale(scale, scale);
+
+                let shakeX = (Math.random()-0.5) * state.cameraShake;
+                let shakeY = (Math.random()-0.5) * state.cameraShake;
+                state.cameraShake *= 0.85; 
+                ctx.translate(shakeX, state.cameraY + shakeY);
+
+                bucketObj.update();
+                let bScale = bucketObj.scale * bucketObj.scaleAnim; 
+
+                ctx.save();
+                ctx.translate(bucketObj.x, bucketObj.y + bucketOffsetY); 
+                ctx.scale(bScale, bScale); 
+                drawBucketImage(); 
+                drawStoredBottles(); 
+                ctx.restore();
+
+                // UPDATE ANIMATION
+                bottle.updateAnimation();
+
+                // 1. ZUERST: ALTE FLASCHE ZEICHNEN (wenn sie rausfährt)
+                if(bottle.animState === 'swapping_out') {
+                    ctx.save();
+                    ctx.translate(bottle.oldBodyX, CAP_START_Y + bottleOffsetY); 
+                    ctx.scale(SCALE_NEAR, SCALE_NEAR);
+                    // Alte Flasche hat KEINEN Tilt, sie gleitet nur gerade raus
+                    drawStationaryBottle(); 
+                    ctx.restore();
                 }
-                drawCapGraphic();
+
+                // 2. DANN: NEUE FLASCHE ZEICHNEN (wenn sie reinkommt oder idle ist)
+                if(bottle.animState === 'swapping_in' || bottle.animState === 'idle') {
+                    ctx.save();
+                    ctx.translate(bottle.bodyX, CAP_START_Y + state.bottleRecoil + bottleOffsetY); 
+                    ctx.scale(SCALE_NEAR, SCALE_NEAR);
+                    // Tilt anwenden während Animation
+                    if(bottle.animState === 'swapping_in') {
+                         ctx.rotate(bottle.rot);
+                    }
+                    drawStationaryBottle();
+                    ctx.restore();
+                }
+
+                if(state.phase === 'flying') {
+                    let distTotal = (VH - 150) - bucketObj.y;
+                    let currentDist = bottle.y - bucketObj.y;
+                    let progress = Math.max(0, Math.min(1, currentDist / distTotal));
+                    bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
+                }
+
+                // Deckel zeichnen
+                // Der Deckel wird nur gezeichnet für die NEUE Flasche oder wenn er fliegt
+                // Während 'swapping_out' gibt es keinen Deckel an der alten Flasche
+                if(bottle.animState !== 'swapping_out' && state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
+                    ctx.save();
+                    let capAnimY = (state.phase === 'idle' || state.phase === 'aiming') ? bottleOffsetY : 0;
+                    
+                    // Der Deckel muss die Rotation der Flasche mitmachen beim Reinfliegen
+                    if(bottle.animState === 'swapping_in') {
+                        // Position anpassen relativ zum Drehpunkt der Flasche
+                        // Flasche dreht um Bottom Center (durch Translate in drawStationaryBottle), Deckel ist oben
+                        ctx.translate(bottle.x, bottle.y + capAnimY);
+                        ctx.rotate(bottle.rot); // Selbe Rotation wie Flasche
+                        ctx.scale(bottle.z, bottle.z);
+                    } else {
+                        // Standard Physik Rotation
+                        ctx.translate(bottle.x, bottle.y + capAnimY);
+                        ctx.scale(bottle.z, bottle.z);
+                        ctx.rotate(bottle.rot);
+                    }
+                    
+                    let speed = Math.sqrt(bottle.vx*bottle.vx + bottle.vy*bottle.vy);
+                    if(state.phase === 'flying' && speed > 10) {
+                        let offset = speed * 0.4;
+                        ctx.save(); ctx.translate(0, offset); ctx.globalAlpha = 0.4; drawCapGraphic(); ctx.restore();
+                    }
+                    drawCapGraphic();
+                    ctx.restore();
+                }
+
+                updatePhysics();
+                updateEffects();
+                drawParticles();
+                drawFloatingTexts();
+
                 ctx.restore();
             }
-
-            updatePhysics();
-            updateEffects();
-            drawParticles();
-            drawFloatingTexts();
-
-            ctx.restore();
 
             if(state.screenFlash > 0.05) {
                 ctx.fillStyle = `rgba(255,255,255,${state.screenFlash})`;
@@ -594,317 +591,205 @@
         }
 
         function drawBackground() {
-            let bgImg = isPC ? images.bgDesktop : images.bgPhone;
-            
+            let bgImg = images.bgPhone; 
             if(!bgImg) {
-                ctx.fillStyle = '#050505';
-                ctx.fillRect(0,0,cvs.width, cvs.height);
+                ctx.fillStyle = '#050505'; ctx.fillRect(0,0,cvs.width, cvs.height);
             } else {
                 let bgRatio = bgImg.width / bgImg.height;
                 let cvsRatio = cvs.width / cvs.height;
-                
+                ctx.save();
+                ctx.filter = 'blur(4px)'; 
                 if (cvsRatio > bgRatio) {
-                    let newH = cvs.width / bgRatio;
-                    ctx.drawImage(bgImg, 0, (cvs.height - newH)/2, cvs.width, newH);
+                    let newH = cvs.width / bgRatio; ctx.drawImage(bgImg, 0, (cvs.height - newH)/2, cvs.width, newH);
                 } else {
-                    let newW = cvs.height * bgRatio;
-                    ctx.drawImage(bgImg, (cvs.width - newW)/2, 0, newW, cvs.height);
+                    let newW = cvs.height * bgRatio; ctx.drawImage(bgImg, (cvs.width - newW)/2, 0, newW, cvs.height);
                 }
+                ctx.restore(); 
             }
-
-            ctx.fillStyle = `rgba(0, 0, 0, ${GAME_CONFIG.visuals.bgOverlayOpacity})`; 
+            let r = 0; let g = 0; let b = 0;
+            let opacity = GAME_CONFIG.visuals.bgOverlayOpacity; 
+            if(state.streak >= 4) { r = 30; opacity = 0.6; }
+            if(state.streak >= 6) { r = 50; opacity = 0.7; }
+            if(state.streak >= 8) { r = 80; opacity = 0.75 + (Math.sin(globalTime * 0.5) * 0.05); }
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`; 
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
 
         function updatePhysics() {
             if(state.phase !== 'flying') return;
-
             let distToBucket = Math.sqrt(Math.pow(bottle.x - bucketObj.x, 2) + Math.pow(bottle.y - bucketObj.y, 2));
-            
             if(distToBucket < 220 && Math.abs(bottle.y - bucketObj.y) < 180 && bottle.vy > 0) {
-                state.timeScale += (0.35 - state.timeScale) * 0.15; 
-                if(Math.random() > 0.8) triggerHaptic('tension');
-            } else {
-                state.timeScale += (1.0 - state.timeScale) * 0.1; 
-            }
+                state.timeScale += (0.35 - state.timeScale) * 0.15; if(Math.random() > 0.8) triggerHaptic('tension');
+            } else { state.timeScale += (1.0 - state.timeScale) * 0.1; }
 
-            bottle.vy += GRAVITY * state.timeScale; 
-            bottle.x += bottle.vx * state.timeScale;
-            bottle.y += bottle.vy * state.timeScale;
-            bottle.rot += bottle.vRot * state.timeScale;
+            bottle.vy += GRAVITY * state.timeScale; bottle.x += bottle.vx * state.timeScale; bottle.y += bottle.vy * state.timeScale; bottle.rot += bottle.vRot * state.timeScale;
 
-            if(bottle.y > VH + 200 || bottle.x < -100 || bottle.x > VW + 100) {
-                handleMiss();
-            }
+            if(bottle.y > VH + 200 || bottle.x < -100 || bottle.x > VW + 100) handleMiss();
 
             let targetY = bucketObj.y - (bucketObj.h * bucketObj.scale)/2;
             let rimW = bucketObj.w * bucketObj.scale;
 
             if(Math.abs(bottle.y - targetY) < 50 && bottle.vy > 0) {
-                if(Math.abs(bottle.x - bucketObj.x) < rimW/2 + 15) {
-                    handleScore();
-                } else if (Math.abs(bottle.x - bucketObj.x) < rimW/2 + 35) {
-                    bottle.vx *= -0.6;
-                    bottle.vRot += (Math.random()-0.5) * 5; 
-                    state.cameraShake = 30; 
-                    state.freezeFrame = 4;
-                    spawnParticles(bottle.x, bottle.y, 'spark'); 
-                    triggerHaptic('impact');
+                if(Math.abs(bottle.x - bucketObj.x) < rimW/2 + 15) handleScore();
+                else if (Math.abs(bottle.x - bucketObj.x) < rimW/2 + 35) {
+                    bottle.vx *= -0.6; bottle.vRot += (Math.random()-0.5) * 5; state.cameraShake = 30; state.freezeFrame = 4; spawnParticles(bottle.x, bottle.y, 'spark'); triggerHaptic('impact');
                 }
             }
         }
 
         function handleScore() {
-            state.phase = 'in_bucket';
-            bottle.vx = 0; bottle.vy = 0; 
-            
-            state.bgEnergy = 150; 
-            state.cameraShake = 40; 
-            state.screenFlash = 0.4; 
-            state.freezeFrame = 8; 
-            bucketObj.scaleAnim = 1.2; 
-            triggerHaptic('success');
-            
+            state.phase = 'in_bucket'; bottle.vx = 0; bottle.vy = 0; 
+            state.bgEnergy = 150; state.cameraShake = 40; state.screenFlash = 0.4; state.freezeFrame = 8; bucketObj.scaleAnim = 1.2; triggerHaptic('success');
             spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
-            
-            let waveColor = '#fff';
-            if(state.streak >= 4) waveColor = '#a5f2f3'; 
-            if(state.streak >= 8) waveColor = '#c91a1a'; 
-            
-            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); 
-            spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
+            let waveColor = '#fff'; if(state.streak >= 4) waveColor = '#a5f2f3'; if(state.streak >= 8) waveColor = '#c91a1a'; 
+            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
 
             if(state.mode === 'streak') {
                 state.streak++;
-                let scoreEl = document.getElementById('score-val');
-                scoreEl.innerText = state.streak;
-                scoreEl.classList.remove('pulse-text');
-                void scoreEl.offsetWidth; 
-                scoreEl.classList.add('pulse-text');
-                
-                let msgs = ["SAUBER!", "GLATT!", "REIN!", "PERFEKT!"];
-                let msg = msgs[Math.floor(Math.random()*msgs.length)];
-                if(state.streak % 5 === 0) msg = "LEGENDÄR!";
+                let scoreEl = document.getElementById('score-val'); scoreEl.innerText = state.streak; scoreEl.classList.remove('pulse-text'); void scoreEl.offsetWidth; scoreEl.classList.add('pulse-text');
+                let msgs = ["SAUBER!", "GLATT!", "REIN!", "PERFEKT!"]; let msg = msgs[Math.floor(Math.random()*msgs.length)]; if(state.streak % 5 === 0) msg = "LEGENDÄR!";
                 spawnFloatingText(msg, bucketObj.x, bucketObj.y - 150);
-            } else {
-                spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150);
-            }
+            } else { spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150); }
 
             console.log("SENDING SECURE SCORE:", SECURITY.getPayload());
 
             setTimeout(() => {
                 let baseHeight = -10; 
                 let stackHeight = state.wonBottles.length * 15; 
+                let yOffset = -70; 
+
                 state.wonBottles.push({
                     relX: (Math.random() - 0.5) * 80, 
-                    relY: baseHeight - stackHeight + (Math.random() * 10), 
+                    relY: baseHeight - stackHeight + yOffset + (Math.random() * 10), 
                     rot: (Math.random() - 0.5) * 2.0 
                 });
-                if(state.mode === 'warmup') {
-                    showInstantWinCheck();
-                } else if (state.mode === 'streak') {
+                if(state.mode === 'warmup') showInstantWinCheck();
+                else if (state.mode === 'streak') {
                     if(state.streak >= 10) showScreen('s-raffle');
                     else {
-                        bottle.reset();
+                        // ANIMATION STARTEN
+                        bottle.reset(true);
                     }
                 }
             }, 600);
         }
 
         function handleMiss() {
-            state.phase = 'miss';
-            setTimeout(() => {
-                if(state.mode === 'warmup') bottle.reset();
-                else showScreen('s-fail');
-            }, 500);
+            state.phase = 'miss'; setTimeout(() => { if(state.mode === 'warmup') bottle.reset(true); else showScreen('s-fail'); }, 500);
         }
 
         function drawBucketImage() {
-            if(images.bucket) {
-                let w = IMG_SIZES.bucket.w;
-                let h = IMG_SIZES.bucket.h;
-                ctx.drawImage(images.bucket, -w/2, -h/2, w, h);
-            }
+            if(images.bucket) { let w = IMG_SIZES.bucket.w; let h = IMG_SIZES.bucket.h; ctx.drawImage(images.bucket, -w/2, -h/2, w, h); }
         }
 
         function drawStoredBottles() {
-            state.wonBottles.forEach(b => {
-                ctx.save();
-                ctx.translate(b.relX, b.relY); 
-                ctx.rotate(b.rot);
-                ctx.scale(1.2, 1.2); 
-                drawCapGraphic(); 
-                ctx.restore();
-            });
+            state.wonBottles.forEach(b => { ctx.save(); ctx.translate(b.relX, b.relY); ctx.rotate(b.rot); ctx.scale(1.2, 1.2); drawCapGraphic(); ctx.restore(); });
         }
 
         function drawStationaryBottle() {
-            if(images.bottle) {
-                let w = IMG_SIZES.bottle.w;
-                let h = IMG_SIZES.bottle.h;
-                ctx.drawImage(images.bottle, -w/2, -10, w, h); 
-            }
+            if(images.bottle) { let w = IMG_SIZES.bottle.w; let h = IMG_SIZES.bottle.h; ctx.drawImage(images.bottle, -w/2, -10, w, h); }
         }
 
         function drawCapGraphic() {
-            if(images.cap) {
-                let w = IMG_SIZES.cap.w;
-                let h = IMG_SIZES.cap.h;
-                ctx.drawImage(images.cap, -w/2, -h/2, w, h);
-            }
+            if(images.cap) { let w = IMG_SIZES.cap.w; let h = IMG_SIZES.cap.h; ctx.drawImage(images.cap, -w/2, -h/2, w, h); }
         }
 
-        const input = { active: false, startX: 0, startY: 0, currX: 0, currY: 0 };
-
+        const input = { active: false, startX: 0, startY: 0, currX: 0, currY: 0, cooldown: false };
+        
         function handleInputStart(x, y) {
+            if(input.cooldown) return; 
             if(state.phase !== 'idle') return;
-            const container = document.getElementById('game-container');
-            const rect = container.getBoundingClientRect();
-            
-            let relativeX = x - rect.left;
-            let relativeY = y - rect.top;
-
-            let offsetX = (cvs.width - (VW * scale)) / 2;
-            let virtX = (relativeX - offsetX) / scale;
-            let virtY = relativeY / scale;
-
-            if(virtY > VH / 2) {
-                input.active = true;
-                input.startX = virtX;
-                input.startY = virtY;
-                input.currX = virtX;
-                input.currY = virtY;
-                state.phase = 'aiming'; 
-                document.getElementById('tutorial-overlay').classList.remove('show');
-                
-                SECURITY.startTime = Date.now();
-                SECURITY.startPos = {x: virtX, y: virtY};
+            const container = document.getElementById('game-container'); const rect = container.getBoundingClientRect();
+            let relativeX = x - rect.left; let relativeY = y - rect.top;
+            let offsetX = (cvs.width - (VW * scale)) / 2; let virtX = (relativeX - offsetX) / scale; let virtY = relativeY / scale;
+            if(virtY > VH * 0.4) {
+                input.active = true; input.startX = virtX; input.startY = virtY; input.currX = virtX; input.currY = virtY;
+                state.phase = 'aiming'; document.getElementById('tutorial-overlay').classList.remove('show');
+                SECURITY.startTime = Date.now(); SECURITY.startPos = {x: virtX, y: virtY};
             }
         }
 
         function handleInputMove(x, y) {
             if(!input.active) return;
-            const container = document.getElementById('game-container');
-            const rect = container.getBoundingClientRect();
-            let relativeX = x - rect.left;
-            let relativeY = y - rect.top;
+            const container = document.getElementById('game-container'); const rect = container.getBoundingClientRect();
+            let relativeX = x - rect.left; let relativeY = y - rect.top;
             let offsetX = (cvs.width - (VW * scale)) / 2;
-            input.currX = (relativeX - offsetX) / scale;
-            input.currY = relativeY / scale;
+            input.currX = (relativeX - offsetX) / scale; input.currY = relativeY / scale;
         }
 
         function handleInputEnd() {
             if(!input.active) return;
-            input.active = false;
-            
-            let dx = input.currX - input.startX;
-            let dy = input.currY - input.startY;
-            
+            input.active = false; 
+            let dx = input.currX - input.startX; let dy = input.currY - input.startY;
             if(dy < -30) { 
-                state.phase = 'flying';
-                bottle.vx = dx * POWER_X; 
-                bottle.vy = dy * POWER_Y; 
-                bottle.vRot = (Math.random() - 0.5) * 0.8; 
-                
-                spawnParticles(VW/2, CAP_START_Y, 'gas');
-                state.bottleRecoil = 25; 
-
-                SECURITY.recordShot(bottle.vx, bottle.vy);
-            } else {
-                state.phase = 'idle'; 
-            }
+                state.phase = 'flying'; bottle.vx = dx * POWER_X; bottle.vy = dy * POWER_Y; bottle.vRot = (Math.random() - 0.5) * 0.8; 
+                spawnParticles(VW/2, CAP_START_Y, 'gas'); state.bottleRecoil = 25; SECURITY.recordShot(bottle.vx, bottle.vy);
+            } else { state.phase = 'idle'; }
         }
+
+        const gameContainer = document.getElementById('game-container');
+        gameContainer.addEventListener('touchstart', e => { 
+             if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); handleInputStart(e.touches[0].clientX, e.touches[0].clientY); }
+        }, {passive:false});
+        gameContainer.addEventListener('touchmove', e => { 
+             if(input.active) { e.preventDefault(); handleInputMove(e.touches[0].clientX, e.touches[0].clientY); }
+        }, {passive:false});
+        gameContainer.addEventListener('touchend', e => {
+             if(input.active) { e.preventDefault(); handleInputEnd(); }
+        }, {passive:false});
 
         window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
         window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
         window.addEventListener('mouseup', handleInputEnd);
-        window.addEventListener('touchstart', e => { 
-            if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-            e.preventDefault(); handleInputStart(e.touches[0].clientX, e.touches[0].clientY); 
-        }, {passive:false});
-        window.addEventListener('touchmove', e => { 
-            if(input.active) e.preventDefault(); handleInputMove(e.touches[0].clientX, e.touches[0].clientY); 
-        }, {passive:false});
-        window.addEventListener('touchend', handleInputEnd);
 
         const header = document.getElementById('main-header');
-
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            if(id) {
-                document.getElementById(id).classList.add('active');
-                header.classList.add('hidden-ui'); 
-            } else {
-                header.classList.remove('hidden-ui'); 
-            }
+            if(id) { document.getElementById(id).classList.add('active'); header.classList.add('hidden-ui'); }
+            else { header.classList.remove('hidden-ui'); }
         }
 
-        function startGame() { showScreen(''); document.getElementById('tutorial-overlay').classList.add('show'); }
+        function startGame() { 
+            showScreen(''); 
+            document.getElementById('tutorial-overlay').classList.add('show');
+            header.classList.add('show-ui'); 
+            state.gameActive = true; 
+            
+            // COOLDOWN
+            input.cooldown = true;
+            setTimeout(() => { input.cooldown = false; }, 500);
+        }
+
         function showInstantWinCheck() { 
             showScreen('s-instant'); 
             const isWinner = Math.random() < 0.3; 
             setTimeout(() => {
                 document.getElementById('iw-msg').classList.add('hidden');
                 if(isWinner) document.getElementById('iw-win-container').classList.remove('hidden');
-                else {
-                    document.getElementById('iw-loss-container').classList.remove('hidden');
-                    document.getElementById('iw-continue-container').classList.remove('hidden');
-                }
+                else { document.getElementById('iw-loss-container').classList.remove('hidden'); document.getElementById('iw-continue-container').classList.remove('hidden'); }
             }, 1000);
         }
         function claimInstant() {
             const email = document.getElementById('email-instant').value;
             if(!email.includes('@')) { alert("Bitte E-Mail eingeben"); return; }
-            document.getElementById('iw-win-container').innerHTML = "<h3>Gespeichert!</h3>";
-            document.getElementById('iw-continue-container').classList.remove('hidden');
+            document.getElementById('iw-win-container').innerHTML = "<h3>Gespeichert!</h3>"; document.getElementById('iw-continue-container').classList.remove('hidden');
         }
         function startStreakMode() {
-            state.mode = 'streak'; 
-            state.streak = 1;
-            document.getElementById('score-val').innerText = "1";
-            state.wonBottles = []; 
-            state.wonBottles.push({ relX: (Math.random() - 0.5) * 40, relY: -10, rot: (Math.random() - 0.5) * 0.5 });
-            showScreen('');
-            bottle.reset(); 
+            state.mode = 'streak'; state.streak = 1; document.getElementById('score-val').innerText = "1";
+            state.wonBottles = []; state.wonBottles.push({ relX: (Math.random() - 0.5) * 40, relY: -70, rot: (Math.random() - 0.5) * 0.5 });
+            showScreen(''); 
+            bottle.reset(true); 
             bucketObj.resetPos();
         }
-        function submitRaffle() { 
-            console.log("FINAL SUBMISSION:", SECURITY.getPayload());
-            alert("Daten übertragen!"); 
-            location.reload(); 
-        }
+        function submitRaffle() { console.log("FINAL SUBMISSION:", SECURITY.getPayload()); alert("Daten übertragen!"); location.reload(); }
         
         function resize() {
-            const container = document.getElementById('game-container');
-            const w = container.clientWidth;
-            const h = container.clientHeight;
-            const screenW = window.innerWidth;
-            
+            const container = document.getElementById('game-container'); const w = container.clientWidth; const h = container.clientHeight; const screenW = window.innerWidth;
             isPC = screenW >= 768; 
-
-            cvs.width = w;
-            cvs.height = h;
-            
-            const heightRatio = 8000 / 4796; 
-
-            if(isPC) {
-                IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth;
-                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
-                IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize;
-                IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize;
-                CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom;
-            } else {
-                IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth;
-                IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; 
-                IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize;
-                IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize;
-                CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom;
-            }
-
-            if(state.phase === 'idle') {
-                bottle.y = CAP_START_Y;
-            }
-
+            cvs.width = w; cvs.height = h; const heightRatio = 8000 / 4796; 
+            if(isPC) { IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize; IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize; CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom; }
+            else { IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize; IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize; CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom; }
+            if(state.phase === 'idle') bottle.y = CAP_START_Y;
             scale = Math.min(w / VW, h / VH);
         }
 
