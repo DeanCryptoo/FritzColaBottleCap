@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>fritz-kola | ULTIMATE CHALLENGE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;900&display=swap');
+
+        :root {
+            --bg: #050505;
+            --white: #f1f1f1;
+            --red: #c91a1a;
+            --neon-blue: #00f0ff;
+            --gold: #FFD700;
+            --font-head: 'Anton', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg);
+            color: var(--white);
+            font-family: var(--font-body);
+            overflow: hidden;
+            height: 100vh; width: 100vw;
+            display: flex; justify-content: center; align-items: center;
+            touch-action: none; 
+        }
+
+        /* --- POST PROCESSING FX --- */
+        #noise-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10; opacity: 0.05;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+        
+        #vignette-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 11;
+            background: radial-gradient(circle, rgba(0,0,0,0) 40%, rgba(0,0,0,0.85) 100%);
+        }
+
+        #game-container {
+            position: relative; 
+            width: 100%; height: 100%; max-width: 480px; 
+            overflow: hidden; background: #000;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8); 
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+
+        /* --- PROGRESS BAR HEADER --- */
+        header {
+            position: absolute; top: 0; left: 0; width: 100%;
+            display: flex; flex-direction: column; align-items: center;
+            padding-top: 30px; z-index: 50; pointer-events: none; 
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            opacity: 0; transform: translateY(-30px); 
+        }
+        header.show-ui { opacity: 1; transform: translateY(0); }
+
+        .logo-text { font-family: var(--font-head); font-size: 1.5rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        .red { color: var(--red); }
+
+        #progress-track {
+            width: 200px; height: 12px; background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            transform: skewX(-15deg); overflow: hidden; position: relative;
+        }
+        #progress-fill {
+            height: 100%; width: 0%; background: var(--white);
+            transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), background-color 0.3s;
+            box-shadow: 0 0 15px rgba(255,255,255,0.6);
+        }
+        #level-text { font-family: var(--font-head); font-size: 0.9rem; color: #888; margin-top: 5px; letter-spacing: 1px; }
+
+        /* --- SCREENS --- */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+            display: none; 
+            flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px; pointer-events: auto; 
+            opacity: 0; transition: opacity 0.4s ease; 
+            
+            /* MOBILE SCALING FIX: Ensure content doesn't hit the header */
+            padding-top: 80px; 
+        }
+        .screen.active { display: flex; opacity: 1; }
+        
+        #s-intro { padding-top: 0; } 
+
+        /* SCANNER SPECIFIC STYLES */
+        #s-scan {
+            background: #000;
+            padding-top: 0;
+            z-index: 60; /* Above everything else */
+        }
+        #video-feed {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; opacity: 0.7;
+            transform: scaleX(-1); /* Mirror effect usually feels better, or remove for back cam */
+        }
+        .scan-frame {
+            width: 250px; height: 250px; 
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 20px;
+            position: relative;
+            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.8); /* Darken everything outside */
+            display: flex; justify-content: center; align-items: center;
+        }
+        .scan-corner {
+            position: absolute; width: 40px; height: 40px; border-color: var(--red); border-style: solid; border-width: 4px;
+        }
+        .tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-radius: 20px 0 0 0; }
+        .tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-radius: 0 20px 0 0; }
+        .bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-radius: 0 0 0 20px; }
+        .br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-radius: 0 0 20px 0; }
+
+        .scan-line {
+            position: absolute; width: 90%; height: 2px; background: var(--red);
+            box-shadow: 0 0 15px var(--red);
+            animation: scanAnim 2s infinite ease-in-out;
+        }
+        @keyframes scanAnim { 0% { top: 10%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 90%; opacity: 0; } }
+
+        .start-logo {
+            width: 200px; max-width: 60%; height: auto;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5));
+            animation: floatLogo 3s ease-in-out infinite;
+        }
+        @keyframes floatLogo {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        h1 { font-family: var(--font-head); font-size: 3.5rem; margin: 0; line-height: 0.9; text-transform: uppercase; letter-spacing: 1px; }
+        h2 { font-family: var(--font-head); font-size: 2rem; margin: 0 0 10px 0; color: var(--white); }
+        p { color: #ccc; margin: 15px 0 30px 0; max-width: 320px; line-height: 1.4; font-size: 1rem; font-weight: 600; }
+
+        .btn {
+            background: var(--white); color: var(--bg); font-family: var(--font-head); font-size: 1.3rem;
+            padding: 18px 0; width: 100%; max-width: 280px; border: none; cursor: pointer; text-transform: uppercase; 
+            margin: 8px 0;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            position: relative; pointer-events: auto; user-select: none; transition: transform 0.1s;
+            box-shadow: 4px 4px 0px var(--red);
+        }
+        .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px var(--red); }
+        .btn-outline { background: transparent; color: var(--white); border: 2px solid rgba(255,255,255,0.3); box-shadow: none; }
+        .hidden { display: none !important; }
+
+        input { 
+            border: 2px solid #333; background: #000; color: #fff; padding: 15px; width: 100%; 
+            font-family: monospace; text-align: center; margin-bottom: 10px; font-size: 1.1rem; outline: none; 
+            pointer-events: auto; text-transform: uppercase;
+        }
+        input:focus { border-color: var(--red); }
+
+        #tutorial-overlay {
+            position: absolute; bottom: 40%; left: 0; width: 100%;
+            text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.5s; z-index: 15;
+        }
+        #tutorial-overlay.show { opacity: 1; }
+        .hand { font-size: 4rem; display: block; animation: flickUp 1.6s infinite cubic-bezier(0.25, 1, 0.5, 1); filter: drop-shadow(0 5px 10px rgba(0,0,0,0.8)); }
+        .hint { font-family: var(--font-head); font-size: 1.2rem; text-transform: uppercase; text-shadow: 0 2px 4px #000; letter-spacing: 2px; }
+        
+        @keyframes flickUp { 
+            0% { transform: translateY(30px) rotate(0deg); opacity: 0; } 
+            20% { opacity: 1; }
+            50% { transform: translateY(-50px) rotate(-10deg); opacity: 1; } 
+            100% { transform: translateY(-80px) rotate(-15deg); opacity: 0; } 
+        }
+
+        /* Glitch Effect */
+        .glitch-anim { animation: glitch 0.3s infinite; color: var(--red); }
+        @keyframes glitch {
+            0% { transform: translate(0); } 20% { transform: translate(-2px, 2px); } 40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); } 80% { transform: translate(2px, -2px); } 100% { transform: translate(0); }
+        }
+
+        /* Loader */
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; color: #fff; z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-family: var(--font-head); letter-spacing: 2px;
+            transition: opacity 0.6s ease-out;
+        }
+        .loader-bar { width: 150px; height: 4px; background: #333; margin-top: 15px; position: relative; overflow: hidden; }
+        .loader-fill { position: absolute; left: 0; top: 0; height: 100%; width: 50%; background: var(--white); animation: loadAnim 1s infinite linear; }
+        @keyframes loadAnim { 0% { left: -50%; } 100% { left: 100%; } }
+
+        /* Mobile specific adjustments to prevent overlap */
+        @media screen and (max-height: 700px) {
+            .screen { padding-top: 60px; }
+            h1 { font-size: 2.8rem; }
+            h2 { font-size: 1.5rem; }
+            .start-logo { width: 150px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="logo-text" style="font-size: 3rem;">fritz<span class="red">.</span></div>
+        <div class="loader-bar"><div class="loader-fill"></div></div>
+    </div>
+
+    <div id="noise-layer"></div>
+    <div id="vignette-layer"></div>
+
+    <div id="game-container">
+        <header id="main-header">
+            <div class="logo-text">fritz<span class="red">-</span>kola</div>
+            <div id="progress-track"><div id="progress-fill"></div></div>
+            <div id="level-text">STREAK <span id="streak-val">0</span>/10</div>
+        </header>
+
+        <div id="game-layer">
+            <canvas id="c"></canvas>
+            <div id="tutorial-overlay">
+                <span class="hand">👆</span>
+                <span class="hint">SCHNIPPEN</span>
+            </div>
+        </div>
+
+        <div id="ui-layer">
+            <div id="s-scan" class="screen">
+                <video id="video-feed" autoplay playsinline muted></video>
+                <div class="scan-frame">
+                    <div class="scan-corner tl"></div>
+                    <div class="scan-corner tr"></div>
+                    <div class="scan-corner bl"></div>
+                    <div class="scan-corner br"></div>
+                    <div class="scan-line"></div>
+                </div>
+                <p style="position: relative; z-index: 10; font-family: monospace; background: rgba(0,0,0,0.6); padding: 5px 10px;">CODE WIRD GESCANNT...</p>
+            </div>
+
+            <div id="s-intro" class="screen">
+                <img src="Logo.png" alt="fritz-kola Logo" class="start-logo" loading="eager">
+                <h1>DECKEL AB</h1>
+                <p>Flasche scannen um zu spielen.<br>Schnipp den Deckel in den Eimer.</p>
+                <div id="token-status" style="margin-bottom: 20px; font-family: monospace; color: var(--red); font-size: 0.9rem;">Prüfe Token...</div>
+                <button class="btn hidden" id="btn-start" ontouchstart="startGame()" onclick="startGame()">SPIEL STARTEN</button>
+            </div>
+
+            <div id="s-instant" class="screen">
+                <h1 id="iw-title">SAUBER!</h1>
+                <p id="iw-msg">Prüfe Sofortgewinn...</p>
+                <div id="iw-win-container" class="hidden" style="width: 100%; max-width: 320px; min-height: 200px;">
+                    <h2 style="color: var(--gold);">SHIRT GEWONNEN!</h2>
+                    <p>Gib deine E-Mail ein um den Gewinn zu sichern.</p>
+                    <input type="email" id="email-instant" placeholder="DEINE E-MAIL ADRESSE">
+                    <button class="btn" ontouchstart="claimInstant()" onclick="claimInstant()">GEWINN SICHERN</button>
+                </div>
+                <div id="iw-loss-container" class="hidden" style="width: 100%; max-width: 320px;">
+                    <h2>KEIN SOFORTGEWINN</h2>
+                    <p>Aber du kannst noch groß abräumen.</p>
+                </div>
+                
+                <div id="iw-continue-container" class="hidden" style="width: 100%; max-width: 320px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #333;">
+                    <h3 style="margin:0 0 10px 0; font-family:var(--font-head); color:var(--white);">HAUPTPREIS GEWINNEN?</h3>
+                    <p style="margin: 0 0 15px 0; color:#888;">Schaffst du 10 Treffer in Folge?</p>
+                    <button class="btn" ontouchstart="startStreakMode()" onclick="startStreakMode()">CHALLENGE STARTEN</button>
+                    <button class="btn btn-outline" style="margin-top:10px" ontouchstart="location.reload()" onclick="location.reload()">NEIN DANKE</button>
+                </div>
+            </div>
+
+            <div id="s-fail" class="screen">
+                <h1 class="glitch-anim" style="color: #666;">DANEBEN</h1>
+                <p>Der Streak ist vorbei.<br>Versuch es noch einmal.</p>
+                <button class="btn" ontouchstart="location.reload()" onclick="location.reload()">NEUE FLASCHE SCANNEN</button>
+            </div>
+
+            <div id="s-raffle" class="screen">
+                <h1 style="color: var(--gold);" class="glitch-anim">LEGENDÄR!</h1>
+                <p>10 Treffer in Folge.<br>Du bist im Lostopf.</p>
+                <div style="width: 100%; max-width: 320px;">
+                    <input type="email" id="email-raffle" placeholder="DEINE E-MAIL ADRESSE">
+                    <button class="btn" ontouchstart="submitRaffle()" onclick="submitRaffle()">TEILNEHMEN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- AUDIO ENGINE (Procedural) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'pop') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(220, now); // LOWERED PITCH
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'swoosh') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'clink') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(1200, now);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                osc.start(now); osc.stop(now + 0.05);
+            } else if (type === 'win') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(554, now + 0.1); // C#
+                osc.frequency.setValueAtTime(659, now + 0.2); // E
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            }
+        }
+
+        const cvs = document.getElementById('c');
+        const ctx = cvs.getContext('2d');
+        const VH = 1000; 
+        const VW = 600;
+        let scale = 1; 
+        let globalTime = 0; 
+        let isPC = false; 
+        
+        // Parallax State
+        let parallax = { x: 0, y: 0 };
+        window.addEventListener('mousemove', e => {
+            parallax.x = (e.clientX / window.innerWidth - 0.5) * 15;
+            parallax.y = (e.clientY / window.innerHeight - 0.5) * 15;
+        });
+
+        // --- ASSET LOADER ---
+        const images = {};
+        const imageSources = {
+            bottle: 'Bottle.png', cap: 'BottleCap.png', bucket: 'icebucket.png', bgPhone: 'backgroundPhone.jpeg', logo:'Logo.png'      
+        };
+
+        const GAME_CONFIG = {
+            pc: { bottleWidth: 240, bottleBottom: 150, capSize: 60, capYOffset: 12 },
+            mobile: { bottleWidth: 220, bottleBottom: 150, capSize: 60, capYOffset: 12 },
+            visuals: { bgOverlayOpacity: 0.5 }
+        };
+
+        const SECURITY = {
+            startTime: 0, startPos: {x:0, y:0}, shots: [],
+            recordShot: function(vecX, vecY) { this.shots.push({ ts: Date.now(), dx: vecX, dy: vecY, valid: true }); },
+            getPayload: function() { return JSON.stringify({ token: state.token, sessionData: this.shots, finalStreak: state.streak }); }
+        };
+
+        const GRAVITY = 0.85;  
+        const POWER_X = 0.11;  
+        const POWER_Y = 0.17;  
+        const SCALE_NEAR = 3.5; 
+        const SCALE_FAR = 1.1; 
+        let CAP_START_Y = VH - 200; 
+        let CAP_OFFSET = 12; // Base offset
+
+        let IMG_SIZES = { bottle: { w: 100, h: 100 }, cap: { w: 30, h: 30 }, bucket: { w: 240, h: 240 } };
+
+        const state = {
+            token: null, phase: 'idle', mode: 'warmup', streak: 0,
+            cameraY: 0, cameraShake: 0, screenFlash: 0, timeScale: 1.0, 
+            freezeFrame: 0, bgEnergy: 0, wonBottles: [], shockwaves: [],
+            floatTexts: [], bgParticles: [], bottleRecoil: 0, introProgress: 0, 
+            gameActive: false,
+            trail: [] 
+        };
+
+        function easeOutBack(x) {
+            const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+        }
+
+        const bottle = {
+            x: 0, y: 0, w: 22, h: 8, z: SCALE_NEAR, 
+            vx: 0, vy: 0, rot: 0, vRot: 0,
+            bodyX: 0, oldBodyX: 0, animState: 'idle', animTimer: 0,      
+            
+            startSwap: function() { this.animState = 'swapping_out'; this.oldBodyX = VW / 2; this.animTimer = 0; },
+
+            reset: function(animate = false) {
+                this.y = CAP_START_Y; this.z = SCALE_NEAR; 
+                this.vx = 0; this.vy = 0; this.rot = 0; this.vRot = 0;
+                state.trail = []; 
+                
+                if(animate) { this.startSwap(); } 
+                else { this.bodyX = VW / 2; this.x = VW / 2; this.animState = 'idle'; state.phase = 'idle'; }
+                
+                state.cameraY = 0; state.timeScale = 1.0; state.bottleRecoil = 0;
+            },
+            
+            updateAnimation: function() {
+                if (this.animState === 'swapping_out') {
+                    this.oldBodyX += 40; 
+                    if (this.oldBodyX > VW + 200) { this.animState = 'swapping_in'; this.animTimer = 0; this.bodyX = -200; }
+                } 
+                else if (this.animState === 'swapping_in') {
+                    this.animTimer += 0.03; if(this.animTimer > 1) this.animTimer = 1;
+                    let t = easeOutBack(this.animTimer);
+                    let startX = -200; let targetX = VW / 2;
+                    this.bodyX = startX + (targetX - startX) * t;
+                    let tilt = (1 - t) * -0.5; this.rot = tilt; this.x = this.bodyX; 
+
+                    if(this.animTimer >= 1) { this.animState = 'idle'; state.phase = 'idle'; this.rot = 0; }
+                }
+                else if (state.phase !== 'flying') {
+                    this.bodyX = VW / 2;
+                    if(state.phase === 'idle' || state.phase === 'aiming') { this.x = this.bodyX; }
+                }
+            }
+        };
+
+        const bucketObj = {
+            x: VW / 2, y: 550, w: IMG_SIZES.bucket.w, h: IMG_SIZES.bucket.h, scale: SCALE_FAR, 
+            scaleAnim: 1.0, squash: {x:1, y:1}, angle: 0, 
+            init: function() { },
+            resetPos: function() { this.x = VW/2; this.y = 550; this.angle = 0; },
+            update: function() {
+                this.squash.x += (1 - this.squash.x) * 0.15;
+                this.squash.y += (1 - this.squash.y) * 0.15;
+                
+                if(state.mode === 'streak' && state.streak >= 3) {
+                    let speed = 0.0005 + (state.streak * 0.00025);
+                    let range = 80 + (state.streak * 6); 
+                    this.angle += speed * 16.6 * state.timeScale;
+                    this.x = (VW/2) + Math.sin(this.angle) * range;
+                }
+            }
+        };
+        bucketObj.init();
+
+        const particles = [];
+        function spawnParticles(x, y, type, customColor) {
+            let count = type === 'confetti' ? 40 : 20;
+            if(type === 'gas') count = 15; 
+            for(let i=0; i<count; i++) {
+                let color = '#fff';
+                let size = Math.random() * 8 + 4;
+                if(type === 'confetti') {
+                    if(customColor) color = customColor; 
+                    else { const cols = ['#fff', '#c91a1a', '#a5f2f3', '#FFD700']; color = cols[Math.floor(Math.random()*cols.length)]; }
+                } else if (type === 'spark') color = '#FFD700';
+                else if (type === 'gas') { color = 'rgba(200, 200, 200, 0.4)'; size = Math.random() * 15 + 5; }
+
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random()-0.5) * (type==='confetti'?25:15),
+                    vy: (Math.random()-0.5) * (type==='confetti'?25:15) + (type==='gas'?-5:0), 
+                    life: 1.0, type: type, color: color, size: size,
+                    rot: Math.random() * Math.PI, vRot: (Math.random()-0.5) * 0.5 
+                });
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.globalAlpha = p.life;
+                if(p.type === 'splash') {
+                    let rad = ctx.createRadialGradient(0,0,0, 0,0,12);
+                    rad.addColorStop(0, 'rgba(165, 242, 243, 0.8)'); rad.addColorStop(1, 'rgba(165, 242, 243, 0)');
+                    ctx.fillStyle = rad; ctx.beginPath(); ctx.arc(0,0, 12, 0, Math.PI*2); ctx.fill();
+                } else if (p.type === 'confetti') {
+                    ctx.fillStyle = p.color; 
+                    ctx.rotate(p.rot); 
+                    let scaleY = Math.cos(p.rot * 3); 
+                    ctx.scale(1, scaleY);
+                    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                } else if (p.type === 'spark') {
+                    ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, 0); ctx.lineTo(0, 8); ctx.lineTo(-2, 0); ctx.fill();
+                } else if (p.type === 'gas') {
+                    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(0,0, p.size, 0, Math.PI*2); ctx.fill();
+                } else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill(); }
+                ctx.restore();
+            });
+        }
+
+        function spawnFloatingText(text, x, y) { state.floatTexts.push({ text: text, x: x, y: y, life: 1.0, vy: -2 }); }
+        function drawFloatingTexts() {
+            ctx.save(); ctx.textAlign = 'center';
+            state.floatTexts.forEach(t => {
+                ctx.font = "bold 50px 'Anton', sans-serif"; ctx.fillStyle = '#fff'; ctx.globalAlpha = t.life;
+                ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.strokeText(t.text, t.x, t.y); ctx.fillText(t.text, t.x, t.y);
+            });
+            ctx.restore();
+        }
+
+        function spawnShockwave(x, y, color) { state.shockwaves.push({ x: x, y: y, r: 10, maxR: 800, alpha: 0.8, color: color }); }
+        function updateEffects() {
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i];
+                p.x += p.vx * state.timeScale; p.y += p.vy * state.timeScale; p.life -= 0.03 * state.timeScale;
+                if(p.type === 'splash') p.vy += 0.5 * state.timeScale;
+                else if (p.type === 'confetti') { p.vy += 0.5 * state.timeScale; p.rot += p.vRot * state.timeScale; }
+                else if (p.type === 'gas') { p.size *= 1.05; p.life -= 0.02; }
+                if(p.life <= 0) particles.splice(i, 1);
+            }
+            for(let i=state.shockwaves.length-1; i>=0; i--) {
+                let s = state.shockwaves[i]; s.r += 40; s.alpha -= 0.04; 
+                if(s.alpha <= 0) state.shockwaves.splice(i, 1);
+            }
+            for(let i=state.floatTexts.length-1; i>=0; i--) {
+                let t = state.floatTexts[i]; t.y += t.vy * state.timeScale; t.life -= 0.02 * state.timeScale;
+                if(t.life <= 0) state.floatTexts.splice(i, 1);
+            }
+            if(state.screenFlash > 0) state.screenFlash -= 0.1;
+            state.bottleRecoil *= 0.8;
+
+            if(state.gameActive && state.introProgress < 1) {
+                state.introProgress += 0.02;
+                if(state.introProgress > 1) state.introProgress = 1;
+            }
+        }
+
+        function triggerHaptic(type) {
+            if (!navigator.vibrate) return;
+            if (type === 'tension') navigator.vibrate(5); 
+            if (type === 'impact') navigator.vibrate(40); 
+            if (type === 'success') navigator.vibrate([40, 50, 40, 50, 100]); 
+        }
+
+        function loadAssets() {
+            let loaded = 0; const keys = Object.keys(imageSources); const total = keys.length;
+            if(total === 0) { init(); return; }
+            keys.forEach(key => {
+                const img = new Image(); img.src = imageSources[key];
+                img.onload = () => { loaded++; images[key] = img; if(loaded === total) { 
+                    document.getElementById('loading-screen').style.opacity = 0; 
+                    setTimeout(() => { document.getElementById('loading-screen').style.display = 'none'; init(); }, 600); 
+                } };
+                img.onerror = () => { loaded++; if(loaded === total) init(); };
+            });
+        }
+
+        function init() {
+            resize(); window.addEventListener('resize', resize);
+            const urlParams = new URLSearchParams(window.location.search); const token = urlParams.get('token');
+            if(token) state.token = token; 
+            else state.token = "demo-" + Date.now();
+            
+            bottle.reset(); 
+            loop();
+
+            // TRIGGER CAMERA SCANNING FIRST
+            startCameraScan();
+        }
+
+        async function startCameraScan() {
+            showScreen('s-scan');
+            const video = document.getElementById('video-feed');
+            try {
+                // Request Camera
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = stream;
+                
+                // Simulate Scan Delay
+                setTimeout(() => {
+                    // Stop Camera to save battery
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Show Intro
+                    checkTokenAndShowIntro();
+                }, 2000);
+            } catch (err) {
+                console.log("Camera access denied or failed", err);
+                // Fallback immediately if no camera
+                setTimeout(() => checkTokenAndShowIntro(), 1000);
+            }
+        }
+
+        function checkTokenAndShowIntro() {
+            showScreen('s-intro');
+            if(state.token.startsWith('demo')) {
+                document.getElementById('token-status').innerText = "DEMO MODUS"; 
+                document.getElementById('token-status').style.color = "#aaa"; 
+            } else {
+                document.getElementById('token-status').innerText = "TOKEN AKTIV"; 
+                document.getElementById('token-status').style.color = "#fff"; 
+            }
+            document.getElementById('btn-start').classList.remove('hidden');
+        }
+
+        function drawShadow(x, scaleVal) {
+             ctx.save();
+             ctx.translate(x, CAP_START_Y + 110); 
+             ctx.scale(1, 0.3); ctx.beginPath();
+             ctx.arc(0, 0, 40 * scaleVal, 0, Math.PI*2);
+             ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.filter = 'blur(5px)'; ctx.fill();
+             ctx.restore();
+        }
+
+        function loop() {
+            globalTime += 0.05;
+            if(state.freezeFrame > 0) { state.freezeFrame--; requestAnimationFrame(loop); return; }
+            state.bgEnergy *= 0.95; 
+
+            drawBackground();
+
+            if(state.gameActive) {
+                let easedIntro = easeOutBack(state.introProgress);
+                let bucketOffsetY = (1 - easedIntro) * -1000; 
+                let bottleOffsetY = (1 - easedIntro) * 1000; 
+
+                ctx.save();
+                let offsetX = (cvs.width - (VW * scale)) / 2;
+                ctx.translate(offsetX, 0);
+                ctx.scale(scale, scale);
+                
+                state.shockwaves.forEach(s => { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.strokeStyle = s.color; ctx.lineWidth = 30; ctx.globalAlpha = s.alpha; ctx.stroke(); });
+                ctx.restore();
+                
+                ctx.save();
+                ctx.translate(offsetX, 0);
+                ctx.scale(scale, scale);
+
+                let shakeX = (Math.random()-0.5) * state.cameraShake;
+                let shakeY = (Math.random()-0.5) * state.cameraShake;
+                state.cameraShake *= 0.85; 
+                ctx.translate(shakeX, state.cameraY + shakeY);
+
+                bucketObj.update();
+                let bScale = bucketObj.scale; 
+                ctx.save();
+                ctx.translate(bucketObj.x, bucketObj.y + bucketOffsetY); 
+                // Apply SQUASH
+                ctx.scale(bScale * bucketObj.squash.x, bScale * bucketObj.squash.y); 
+                drawBucketImage(); 
+                drawStoredBottles(); 
+                ctx.restore();
+
+                bottle.updateAnimation();
+
+                // 1. Shadow & Bottle (Old)
+                if(bottle.animState === 'swapping_out') {
+                    drawShadow(bottle.oldBodyX, 1);
+                    ctx.save();
+                    ctx.translate(bottle.oldBodyX, CAP_START_Y + bottleOffsetY); 
+                    ctx.scale(SCALE_NEAR, SCALE_NEAR);
+                    drawStationaryBottle(); 
+                    ctx.restore();
+                }
+
+                // 2. Shadow & Bottle (New/Current)
+                if(bottle.animState === 'swapping_in' || bottle.animState === 'idle') {
+                    drawShadow(bottle.bodyX, 1); 
+                    ctx.save();
+                    ctx.translate(bottle.bodyX, CAP_START_Y + state.bottleRecoil + bottleOffsetY); 
+                    ctx.scale(SCALE_NEAR, SCALE_NEAR);
+                    if(bottle.animState === 'swapping_in') { ctx.rotate(bottle.rot); }
+                    drawStationaryBottle();
+                    ctx.restore();
+                }
+
+                if(state.phase === 'flying') {
+                    let distTotal = (VH - 150) - bucketObj.y;
+                    let currentDist = bottle.y - bucketObj.y;
+                    let progress = Math.max(0, Math.min(1, currentDist / distTotal));
+                    bottle.z = bucketObj.scale + (progress * (SCALE_NEAR - bucketObj.scale));
+                }
+
+                // Cap Drawing & Trails
+                if(bottle.animState !== 'swapping_out' && state.phase !== 'in_bucket' && state.phase !== 'miss_anim_done') {
+                    ctx.save();
+                    let capAnimY = (state.phase === 'idle' || state.phase === 'aiming') ? bottleOffsetY : 0;
+                    
+                    let totalY = bottle.y + capAnimY + CAP_OFFSET;
+
+                    // AIM TENSION JITTER
+                    let jitterX = 0; let jitterY = 0;
+                    if(state.phase === 'aiming') {
+                        jitterX = (Math.random()-0.5) * 2;
+                        jitterY = (Math.random()-0.5) * 2;
+                    }
+
+                    // IMPROVED TRAIL RENDERING
+                    if(state.phase === 'flying' && state.trail.length > 1) {
+                        ctx.save();
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        // Iterate through trail points to draw tapered swoosh
+                        for(let i=0; i < state.trail.length - 1; i++) {
+                            let p1 = state.trail[i];
+                            let p2 = state.trail[i+1];
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y + capAnimY + CAP_OFFSET);
+                            ctx.lineTo(p2.x, p2.y + capAnimY + CAP_OFFSET);
+                            
+                            let progress = i / state.trail.length;
+                            let alpha = progress * 0.6; 
+                            let width = progress * 25 * bottle.z; 
+                            
+                            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                            ctx.lineWidth = width;
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+
+                    if(bottle.animState === 'swapping_in') {
+                        ctx.translate(bottle.x + jitterX, totalY + jitterY); ctx.rotate(bottle.rot); ctx.scale(bottle.z, bottle.z);
+                    } else {
+                        ctx.translate(bottle.x + jitterX, totalY + jitterY); ctx.scale(bottle.z, bottle.z); ctx.rotate(bottle.rot);
+                    }
+                    
+                    drawCapGraphic();
+                    ctx.restore();
+                }
+
+                updatePhysics();
+                updateEffects();
+                drawParticles();
+                drawFloatingTexts();
+
+                ctx.restore();
+            }
+
+            if(state.screenFlash > 0.05) {
+                ctx.fillStyle = `rgba(255,255,255,${state.screenFlash})`;
+                ctx.fillRect(0,0,cvs.width, cvs.height);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        function drawBackground() {
+            // Apply Parallax
+            let px = parallax.x; let py = parallax.y;
+
+            if(images.bgPhone && images.bgPhone.complete) {
+                let bgImg = images.bgPhone;
+                let bgRatio = bgImg.width / bgImg.height;
+                let cvsRatio = cvs.width / cvs.height;
+                ctx.save();
+                ctx.translate(px, py); 
+                ctx.scale(1.05, 1.05); 
+                ctx.filter = 'blur(6px) brightness(0.6)'; 
+                if (cvsRatio > bgRatio) {
+                    let newH = cvs.width / bgRatio; ctx.drawImage(bgImg, 0, (cvs.height - newH)/2, cvs.width, newH);
+                } else {
+                    let newW = cvs.height * bgRatio; ctx.drawImage(bgImg, (cvs.width - newW)/2, 0, newW, cvs.height);
+                }
+                ctx.restore(); 
+            } else {
+                ctx.fillStyle = '#111'; ctx.fillRect(0,0,cvs.width, cvs.height);
+            }
+            
+            // LIGHTING ENGINE
+            let cx = cvs.width/2 + px;
+            let cy = cvs.height/2 + py;
+            
+            let color = '255, 255, 255'; 
+            let opacity = 0.1;
+
+            if(state.streak >= 4) { color = '201, 26, 26'; opacity = 0.2; } // Red
+            if(state.streak >= 7) { color = '0, 240, 255'; opacity = 0.2; } // Blue
+            if(state.streak >= 9) { color = '255, 215, 0'; opacity = 0.25; } // Gold
+
+            let breath = 1 + Math.sin(globalTime * 2) * 0.05;
+
+            let grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cvs.height * 0.8);
+            grad.addColorStop(0, `rgba(${color}, ${opacity * breath})`);
+            grad.addColorStop(1, 'rgba(0,0,0,0.8)'); 
+
+            ctx.globalCompositeOperation = 'overlay';
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,cvs.width, cvs.height);
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function updatePhysics() {
+            if(state.phase !== 'flying') return;
+            
+            // Record Trail
+            if(globalTime % 0.1 < 0.05) state.trail.push({x: bottle.x, y: bottle.y});
+
+            // --- LAG FIX: CONSTANT TIME SCALE ---
+            // Removed logic that slowed down timeScale based on distance
+            state.timeScale = 1.0; 
+            // ------------------------------------
+
+            bottle.vy += GRAVITY * state.timeScale; bottle.x += bottle.vx * state.timeScale; bottle.y += bottle.vy * state.timeScale; bottle.rot += bottle.vRot * state.timeScale;
+
+            if(bottle.y > VH + 200 || bottle.x < -100 || bottle.x > VW + 100) handleMiss();
+
+            let targetY = bucketObj.y - (bucketObj.h * bucketObj.scale)/2;
+            let rimW = bucketObj.w * bucketObj.scale;
+
+            if(Math.abs(bottle.y - targetY) < 50 && bottle.vy > 0) {
+                if(Math.abs(bottle.x - bucketObj.x) < rimW/2 + 15) handleScore();
+                else if (Math.abs(bottle.x - bucketObj.x) < rimW/2 + 35) {
+                    bottle.vx *= -0.6; bottle.vRot += (Math.random()-0.5) * 5; state.cameraShake = 30; state.freezeFrame = 4; spawnParticles(bottle.x, bottle.y, 'spark'); triggerHaptic('impact');
+                    playSound('clink');
+                }
+            }
+        }
+
+        function handleScore() {
+            playSound('win');
+            state.phase = 'in_bucket'; bottle.vx = 0; bottle.vy = 0; 
+            state.bgEnergy = 150; state.cameraShake = 40; state.screenFlash = 0.4; state.freezeFrame = 8; 
+            
+            // DEPTH MASKING: Slide down logic simulated by fading
+            bottle.y += 20; 
+
+            bucketObj.squash = {x: 1.3, y: 0.7}; 
+            triggerHaptic('success');
+            spawnParticles(bucketObj.x, bucketObj.y - 50, 'splash'); 
+            
+            let waveColor = '#fff'; 
+            if(state.streak >= 4 && state.streak < 7) waveColor = '#c91a1a'; 
+            else if(state.streak >= 7 && state.streak < 9) waveColor = '#00ccff'; 
+            else if(state.streak >= 9) waveColor = '#FFD700'; 
+
+            spawnParticles(bucketObj.x, bucketObj.y - 100, 'confetti', waveColor); spawnShockwave(bucketObj.x, bucketObj.y, waveColor);
+
+            if(state.mode === 'streak') {
+                state.streak++;
+                // UPDATE PROGRESS BAR
+                document.getElementById('streak-val').innerText = state.streak;
+                let percent = (state.streak / 10) * 100;
+                let fill = document.getElementById('progress-fill');
+                fill.style.width = percent + "%";
+                if(state.streak >= 7) fill.style.backgroundColor = 'var(--neon-blue)';
+                if(state.streak >= 9) fill.style.backgroundColor = 'var(--gold)';
+
+                let msgs = ["SAUBER!", "GLATT!", "REIN!", "PERFEKT!"]; let msg = msgs[Math.floor(Math.random()*msgs.length)]; if(state.streak % 5 === 0) msg = "LEGENDÄR!";
+                spawnFloatingText(msg, bucketObj.x, bucketObj.y - 150);
+            } else { 
+                // Warmup Hit - Start Challenge with 1 Streak
+                state.streak = 1; 
+                spawnFloatingText("TREFFER!", bucketObj.x, bucketObj.y - 150); 
+            }
+
+            console.log("SENDING SECURE SCORE:", SECURITY.getPayload());
+
+            setTimeout(() => {
+                let baseHeight = -10; 
+                let stackHeight = state.wonBottles.length * 15; 
+                let yOffset = -70; 
+
+                state.wonBottles.push({
+                    relX: (Math.random() - 0.5) * 80, 
+                    relY: baseHeight - stackHeight + yOffset + (Math.random() * 10), 
+                    rot: (Math.random() - 0.5) * 2.0 
+                });
+                
+                if(state.mode === 'warmup') {
+                    showInstantWinCheck();
+                }
+                else if (state.mode === 'streak') {
+                    if(state.streak >= 10) showScreen('s-raffle');
+                    else {
+                        bottle.reset(true); 
+                    }
+                }
+            }, 600);
+        }
+
+        function handleMiss() {
+            state.phase = 'miss'; setTimeout(() => { if(state.mode === 'warmup') bottle.reset(true); else showScreen('s-fail'); }, 500);
+        }
+
+        function drawBucketImage() {
+            if(images.bucket) { let w = IMG_SIZES.bucket.w; let h = IMG_SIZES.bucket.h; ctx.drawImage(images.bucket, -w/2, -h/2, w, h); }
+        }
+
+        function drawStoredBottles() {
+            state.wonBottles.forEach(b => { ctx.save(); ctx.translate(b.relX, b.relY); ctx.rotate(b.rot); ctx.scale(1.2, 1.2); drawCapGraphic(); ctx.restore(); });
+        }
+
+        function drawStationaryBottle() {
+            if(images.bottle) { let w = IMG_SIZES.bottle.w; let h = IMG_SIZES.bottle.h; ctx.drawImage(images.bottle, -w/2, -10, w, h); }
+        }
+
+        function drawCapGraphic() {
+            if(images.cap) { let w = IMG_SIZES.cap.w; let h = IMG_SIZES.cap.h; ctx.drawImage(images.cap, -w/2, -h/2, w, h); }
+        }
+
+        const input = { active: false, startX: 0, startY: 0, currX: 0, currY: 0, cooldown: false };
+        
+        function handleInputStart(x, y) {
+            if(input.cooldown) return; 
+            if(state.phase !== 'idle') return;
+            playSound('pop'); 
+            const container = document.getElementById('game-container'); const rect = container.getBoundingClientRect();
+            let relativeX = x - rect.left; let relativeY = y - rect.top;
+            let offsetX = (cvs.width - (VW * scale)) / 2; let virtX = (relativeX - offsetX) / scale; let virtY = relativeY / scale;
+            if(virtY > VH * 0.4) {
+                input.active = true; input.startX = virtX; input.startY = virtY; input.currX = virtX; input.currY = virtY;
+                state.phase = 'aiming'; document.getElementById('tutorial-overlay').classList.remove('show');
+                SECURITY.startTime = Date.now(); SECURITY.startPos = {x: virtX, y: virtY};
+            }
+        }
+
+        function handleInputMove(x, y) {
+            if(!input.active) return;
+            const container = document.getElementById('game-container'); const rect = container.getBoundingClientRect();
+            let relativeX = x - rect.left; let relativeY = y - rect.top;
+            let offsetX = (cvs.width - (VW * scale)) / 2;
+            input.currX = (relativeX - offsetX) / scale; input.currY = relativeY / scale;
+        }
+
+        function handleInputEnd() {
+            if(!input.active) return;
+            input.active = false; 
+            let dx = input.currX - input.startX; let dy = input.currY - input.startY;
+            if(dy < -30) { 
+                playSound('swoosh');
+                state.phase = 'flying'; bottle.vx = dx * POWER_X; bottle.vy = dy * POWER_Y; bottle.vRot = (Math.random() - 0.5) * 0.8; 
+                spawnParticles(VW/2, CAP_START_Y, 'gas'); state.bottleRecoil = 25; SECURITY.recordShot(bottle.vx, bottle.vy);
+            } else { state.phase = 'idle'; }
+        }
+
+        const gameContainer = document.getElementById('game-container');
+        gameContainer.addEventListener('touchstart', e => { 
+             if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); handleInputStart(e.touches[0].clientX, e.touches[0].clientY); }
+        }, {passive:false});
+        gameContainer.addEventListener('touchmove', e => { 
+             if(input.active) { e.preventDefault(); handleInputMove(e.touches[0].clientX, e.touches[0].clientY); }
+        }, {passive:false});
+        gameContainer.addEventListener('touchend', e => {
+             if(input.active) { e.preventDefault(); handleInputEnd(); }
+        }, {passive:false});
+
+        window.addEventListener('mousedown', e => handleInputStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => handleInputMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleInputEnd);
+
+        const header = document.getElementById('main-header');
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            if(id) { 
+                document.getElementById(id).classList.add('active'); 
+                header.classList.remove('show-ui'); 
+            }
+            else { 
+                header.classList.add('show-ui'); 
+            }
+        }
+
+        function startGame() { 
+            playSound('pop');
+            showScreen(''); 
+            document.getElementById('tutorial-overlay').classList.add('show');
+            state.gameActive = true; 
+            input.cooldown = true; setTimeout(() => { input.cooldown = false; }, 500);
+        }
+
+        function showInstantWinCheck() { 
+            showScreen('s-instant'); 
+            const isWinner = Math.random() < 0.3; 
+            setTimeout(() => {
+                document.getElementById('iw-msg').classList.add('hidden');
+                if(isWinner) document.getElementById('iw-win-container').classList.remove('hidden');
+                else { document.getElementById('iw-loss-container').classList.remove('hidden'); document.getElementById('iw-continue-container').classList.remove('hidden'); }
+            }, 1000);
+        }
+        function claimInstant() {
+            playSound('pop');
+            const email = document.getElementById('email-instant').value;
+            if(!email.includes('@')) { alert("Bitte E-Mail eingeben"); return; }
+            document.getElementById('iw-win-container').innerHTML = "<h3>Gespeichert!</h3>"; document.getElementById('iw-continue-container').classList.remove('hidden');
+        }
+        function startStreakMode() {
+            playSound('swoosh');
+            state.mode = 'streak'; 
+            if(state.streak === 0) state.streak = 1; // Start with 1 if they hit
+
+            document.getElementById('streak-val').innerText = state.streak;
+            let percent = (state.streak / 10) * 100;
+            document.getElementById('progress-fill').style.width = percent + "%";
+
+            state.wonBottles = []; state.wonBottles.push({ relX: (Math.random() - 0.5) * 40, relY: -70, rot: (Math.random() - 0.5) * 0.5 });
+            
+            showScreen(''); 
+            bottle.reset(true); 
+            bucketObj.resetPos();
+        }
+        function submitRaffle() { console.log("FINAL SUBMISSION:", SECURITY.getPayload()); alert("Daten übertragen!"); location.reload(); }
+        
+        function resize() {
+            const container = document.getElementById('game-container'); const w = container.clientWidth; const h = container.clientHeight; const screenW = window.innerWidth;
+            isPC = screenW >= 768; 
+            cvs.width = w; cvs.height = h; const heightRatio = 8000 / 4796; 
+            if(isPC) { IMG_SIZES.bottle.w = GAME_CONFIG.pc.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.pc.capSize; IMG_SIZES.cap.h = GAME_CONFIG.pc.capSize; CAP_START_Y = VH - GAME_CONFIG.pc.bottleBottom; CAP_OFFSET = GAME_CONFIG.pc.capYOffset; }
+            else { IMG_SIZES.bottle.w = GAME_CONFIG.mobile.bottleWidth; IMG_SIZES.bottle.h = IMG_SIZES.bottle.w * heightRatio; IMG_SIZES.cap.w = GAME_CONFIG.mobile.capSize; IMG_SIZES.cap.h = GAME_CONFIG.mobile.capSize; CAP_START_Y = VH - GAME_CONFIG.mobile.bottleBottom; CAP_OFFSET = GAME_CONFIG.mobile.capYOffset; }
+            if(state.phase === 'idle') bottle.y = CAP_START_Y;
+            scale = Math.min(w / VW, h / VH);
+        }
+
+        loadAssets();
+
+    </script>
+</body>
+</html>
