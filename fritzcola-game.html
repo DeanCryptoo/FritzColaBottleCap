@@ -58,6 +58,7 @@
             z-index: 10;
             opacity: 0.04;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            transition: opacity 0.5s;
         }
 
         #vignette-layer {
@@ -69,6 +70,181 @@
             pointer-events: none;
             z-index: 11;
             background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0.95) 100%);
+            transition: all 0.5s ease-out;
+        }
+
+        /* === PRESSURE SYSTEM - The Caffeine Rush === */
+        #pressure-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 13;
+            opacity: 0;
+            transition: opacity 0.8s;
+        }
+
+        #pressure-overlay.active {
+            opacity: 1;
+        }
+
+        /* Dynamic vignette that tightens with pressure */
+        .pressure-vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at center,
+                rgba(0,0,0,0) var(--vignette-center, 30%),
+                rgba(0,0,0,0.5) var(--vignette-mid, 60%),
+                rgba(0,0,0,0.95) var(--vignette-edge, 95%));
+            transition: --vignette-center 0.5s, --vignette-mid 0.5s, --vignette-edge 0.5s;
+        }
+
+        /* Heartbeat pulse effect */
+        .pressure-pulse {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0px solid var(--red-bright);
+            border-radius: 50%;
+            opacity: 0;
+            transform: scale(1);
+            transition: all 0.1s;
+        }
+
+        .pressure-pulse.beat {
+            animation: heartbeat var(--pulse-speed, 1s) ease-in-out infinite;
+        }
+
+        @keyframes heartbeat {
+            0% { transform: scale(1); opacity: 0; border-width: 0px; }
+            15% { transform: scale(1.02); opacity: 0.6; border-width: 3px; }
+            30% { transform: scale(1); opacity: 0; border-width: 0px; }
+            45% { transform: scale(1.01); opacity: 0.3; border-width: 1px; }
+            100% { transform: scale(1); opacity: 0; border-width: 0px; }
+        }
+
+        /* Glitch effect for high pressure */
+        .pressure-glitch {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(255, 255, 255, 0.03) 2px,
+                rgba(255, 255, 255, 0.03) 4px
+            );
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .pressure-glitch.active {
+            animation: glitchScan 0.1s infinite;
+        }
+
+        @keyframes glitchScan {
+            0% { transform: translateY(0); opacity: 0.5; }
+            25% { transform: translateY(-5px); opacity: 0.3; }
+            50% { transform: translateY(3px); opacity: 0.6; }
+            75% { transform: translateY(-2px); opacity: 0.4; }
+            100% { transform: translateY(0); opacity: 0.5; }
+        }
+
+        /* Tension lines radiating from center */
+        .pressure-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            background: repeating-conic-gradient(
+                from 0deg,
+                transparent 0deg 8deg,
+                rgba(255,255,255,0.02) 8deg 10deg
+            );
+            transition: opacity 0.5s;
+        }
+
+        /* Screen shake intensity modifier */
+        #game-container.pressure-shake-low {
+            animation: shakeLow 0.4s ease-out;
+        }
+
+        #game-container.pressure-shake-medium {
+            animation: shakeMedium 0.3s ease-out;
+        }
+
+        #game-container.pressure-shake-high {
+            animation: shakeHigh 0.2s ease-out;
+        }
+
+        @keyframes shakeLow {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+        @keyframes shakeMedium {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-4px); }
+            40% { transform: translateX(4px); }
+            60% { transform: translateX(-3px); }
+            80% { transform: translateX(3px); }
+        }
+
+        @keyframes shakeHigh {
+            0%, 100% { transform: translateX(0); }
+            15% { transform: translateX(-7px) rotate(-0.5deg); }
+            30% { transform: translateX(7px) rotate(0.5deg); }
+            45% { transform: translateX(-5px) rotate(-0.3deg); }
+            60% { transform: translateX(5px) rotate(0.3deg); }
+            80% { transform: translateX(-3px); }
+        }
+
+        /* Focus tunnel effect */
+        .pressure-focus {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 0 0 rgba(0,0,0,0);
+            transition: box-shadow 0.5s;
+        }
+
+        .pressure-focus.active {
+            box-shadow: inset 0 0 100px 50px rgba(0,0,0,0.7);
+        }
+
+        /* Red edge glow for critical moments */
+        .pressure-critical {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: inset 0 0 0 0 rgba(232, 33, 39, 0);
+            transition: box-shadow 0.3s;
+        }
+
+        .pressure-critical.active {
+            animation: criticalPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes criticalPulse {
+            0%, 100% { box-shadow: inset 0 0 20px 0 rgba(232, 33, 39, 0.3); }
+            50% { box-shadow: inset 0 0 40px 10px rgba(232, 33, 39, 0.5); }
         }
 
         #chromatic-layer {
@@ -749,6 +925,17 @@
     <div id="noise-layer"></div>
     <div id="vignette-layer"></div>
     <div id="chromatic-layer"></div>
+
+    <!-- Pressure System - The Caffeine Rush -->
+    <div id="pressure-overlay">
+        <div class="pressure-vignette" id="p-vignette"></div>
+        <div class="pressure-pulse" id="p-pulse"></div>
+        <div class="pressure-glitch" id="p-glitch"></div>
+        <div class="pressure-lines" id="p-lines"></div>
+        <div class="pressure-focus" id="p-focus"></div>
+        <div class="pressure-critical" id="p-critical"></div>
+    </div>
+
     <div class="notch-spacer"></div>
 
     <div id="game-container">
@@ -1048,8 +1235,174 @@
             freezeFrame: 0, bgEnergy: 0, wonBottles: [], shockwaves: [],
             floatTexts: [], bgParticles: [], bottleRecoil: 0, introProgress: 0,
             gameActive: false,
-            trail: []
+            trail: [],
+            pressureLevel: 0
         };
+
+        // === PRESSURE SYSTEM - The Caffeine Rush ===
+        const pressure = {
+            level: 0,
+            elements: {},
+            pulseInterval: null,
+
+            init: function() {
+                this.elements = {
+                    overlay: document.getElementById('pressure-overlay'),
+                    vignette: document.getElementById('p-vignette'),
+                    pulse: document.getElementById('p-pulse'),
+                    glitch: document.getElementById('p-glitch'),
+                    lines: document.getElementById('p-lines'),
+                    focus: document.getElementById('p-focus'),
+                    critical: document.getElementById('p-critical'),
+                    noise: document.getElementById('noise-layer'),
+                    chromatic: document.getElementById('chromatic-layer')
+                };
+            },
+
+            update: function(streak) {
+                // Calculate pressure level (0-10 mapped to 0-1)
+                this.level = Math.min(streak / 10, 1);
+
+                if (streak === 0) {
+                    this.deactivate();
+                    return;
+                }
+
+                this.activate();
+                this.applyEffects();
+            },
+
+            activate: function() {
+                this.elements.overlay.classList.add('active');
+            },
+
+            deactivate: function() {
+                this.elements.overlay.classList.remove('active');
+                this.elements.pulse.classList.remove('beat');
+                this.elements.glitch.classList.remove('active');
+                this.elements.critical.classList.remove('active');
+                this.elements.focus.classList.remove('active');
+                this.elements.noise.style.opacity = '0.04';
+                this.resetVignette();
+                if (this.pulseInterval) {
+                    clearInterval(this.pulseInterval);
+                    this.pulseInterval = null;
+                }
+            },
+
+            resetVignette: function() {
+                this.elements.vignette.style.setProperty('--vignette-center', '30%');
+                this.elements.vignette.style.setProperty('--vignette-mid', '60%');
+                this.elements.vignette.style.setProperty('--vignette-edge', '95%');
+            },
+
+            applyEffects: function() {
+                const l = this.level;
+
+                // Stage 1: Streak 1-3 (The Build-up)
+                // Increased noise, subtle vignette
+                if (l > 0 && l < 0.4) {
+                    this.elements.noise.style.opacity = String(0.04 + l * 0.1);
+                }
+
+                // Stage 2: Streak 4-6 (The Kick)
+                // Heartbeat begins, vignette tightens, chromatic starts
+                if (l >= 0.3 && l < 0.7) {
+                    // Heartbeat pulse - speeds up as streak increases
+                    const pulseSpeed = 1.5 - (l * 0.8); // 1.2s down to 0.7s
+                    this.elements.pulse.style.setProperty('--pulse-speed', pulseSpeed + 's');
+                    this.elements.pulse.classList.add('beat');
+
+                    // Vignette tightens
+                    const tighten = (l - 0.3) * 100;
+                    this.elements.vignette.style.setProperty('--vignette-center', String(30 - tighten * 0.2) + '%');
+                    this.elements.vignette.style.setProperty('--vignette-mid', String(60 - tighten * 0.3) + '%');
+                    this.elements.vignette.style.setProperty('--vignette-edge', String(95 - tighten * 0.2) + '%');
+
+                    // Chromatic aberration
+                    this.elements.chromatic.style.opacity = String((l - 0.3) * 0.5);
+                }
+
+                // Stage 3: Streak 7-9 (The Rush)
+                // Glitch effects, focus tunnel, intense shake
+                if (l >= 0.6 && l < 0.95) {
+                    // Glitch activates
+                    this.elements.glitch.classList.add('active');
+                    this.elements.glitch.style.opacity = String((l - 0.6) * 1.5);
+
+                    // Focus tunnel effect
+                    this.elements.focus.classList.add('active');
+
+                    // Tension lines
+                    this.elements.lines.style.opacity = String((l - 0.6) * 0.8);
+
+                    // More aggressive vignette
+                    const tighten = (l - 0.6) * 100;
+                    this.elements.vignette.style.setProperty('--vignette-center', String(20 - tighten * 0.3) + '%');
+                    this.elements.vignette.style.setProperty('--vignette-mid', String(45 - tighten * 0.4) + '%');
+                    this.elements.vignette.style.setProperty('--vignette-edge', String(90 - tighten * 0.3) + '%');
+
+                    // Intense chromatic
+                    this.elements.chromatic.style.opacity = String(0.2 + (l - 0.6) * 1.5);
+
+                    // Noise intensifies
+                    this.elements.noise.style.opacity = String(0.08 + (l - 0.6) * 0.15);
+                }
+
+                // Stage 4: Streak 10 (The Climax)
+                // Critical state - red edges, maximum chaos
+                if (l >= 0.95) {
+                    // Critical red pulse
+                    this.elements.critical.classList.add('active');
+
+                    // Maximum vignette
+                    this.elements.vignette.style.setProperty('--vignette-center', '15%');
+                    this.elements.vignette.style.setProperty('--vignette-mid', '35%');
+                    this.elements.vignette.style.setProperty('--vignette-edge', '85%');
+
+                    // Full chromatic
+                    this.elements.chromatic.style.opacity = '0.5';
+
+                    // Maximum noise
+                    this.elements.noise.style.opacity = '0.15';
+                }
+            },
+
+            // Trigger one-time pressure burst on score
+            burst: function() {
+                if (this.level >= 0.6) {
+                    // Flash the glitch effect
+                    this.elements.glitch.style.opacity = '0.8';
+                    setTimeout(() => {
+                        if (this.level >= 0.6) {
+                            this.elements.glitch.style.opacity = String((this.level - 0.6) * 1.5);
+                        }
+                    }, 100);
+                }
+
+                if (this.level >= 0.9) {
+                    // Extra chromatic burst for critical moments
+                    const chrom = this.elements.chromatic;
+                    chrom.style.opacity = '0.8';
+                    setTimeout(() => {
+                        chrom.style.opacity = '0.5';
+                    }, 150);
+                }
+            },
+
+            // Get camera shake multiplier based on pressure
+            getShakeMultiplier: function() {
+                if (this.level < 0.3) return 1;
+                if (this.level < 0.6) return 1.2;
+                if (this.level < 0.9) return 1.5;
+                return 2.0;
+            }
+        };
+
+        // Initialize pressure system when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            pressure.init();
+        });
 
         function easeOutBack(x) {
             const c1 = 1.70158; const c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
